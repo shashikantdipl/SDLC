@@ -1,566 +1,834 @@
-# 04-QUALITY.md --- Non-Functional Requirements Specification
-
-| Field | Value |
-|---|---|
-| **Document** | QUALITY-001 |
-| **Title** | Agentic SDLC Platform --- Non-Functional Requirements |
-| **Version** | 1.0.0 |
-| **Date** | 2026-03-23 |
-| **Status** | Draft |
-| **Owner** | Sarah (Engineering Lead) |
-| **Reviewers** | Priya (Platform Engineer), Marcus (DevOps), Lisa (Compliance Officer) |
-| **Applies to** | All subsystems: SDK Runtime, Pipeline Orchestration, SessionStore, Dashboard, REST API, PostgreSQL schema |
+# QUALITY — Agentic SDLC Platform
+**Version:** v1.0 | Full-Stack-First | 2026-03-24
+**Document:** 4 of 14 | Status: Draft
 
 ---
 
 ## 1. Purpose
 
-This document defines 36 non-functional requirements (NFRs) across eight quality categories for the Agentic SDLC Platform. Every NFR is specific, measurable, and includes an automated verification method. These requirements are binding for all code merged to `main` and are enforced through CI gates, runtime monitors, and periodic audits.
+This document defines every non-functional requirement (NFR) for the Agentic SDLC Platform with specific, measurable thresholds and automated verification methods. Following the Full-Stack-First approach, NFRs cover all three interface layers (MCP, REST, Dashboard) as equal citizens, plus interface parity requirements ensuring behavioral consistency across layers. All NFRs are binding for code merged to `main` and enforced through CI gates, runtime monitors, and periodic audits.
+
+---
 
 ## 2. Conventions
 
-- **NFR Identifier:** `Q-NNN` where NNN is a zero-padded sequence number.
-- **Format:** `Q-NNN: [Category] --- [Imperative rule with specific threshold]. Verify: [automated verification method].`
+- **NFR Identifier:** `Q-NNN` where NNN is a zero-padded three-digit sequence number.
+- **Format:** `Q-NNN: [Category] — [Imperative rule with specific threshold]. Verify: [automated verification method].`
 - **Priority tiers:** P0 (launch blocker), P1 (required within 30 days of GA), P2 (required within 90 days of GA).
 - **Measurement cadence:** Continuous (C) = every invocation or request; Periodic (P) = scheduled job; Gate (G) = CI/CD pipeline check.
+- **PRD traceability:** Each NFR maps to one or more PRD success metrics (M1–M10).
+
+---
 
 ## 3. Summary Matrix
 
 | Category | NFR Range | Count | P0 | P1 | P2 |
 |---|---|---|---|---|---|
-| Performance | Q-001 -- Q-006 | 6 | 3 | 2 | 1 |
-| Reliability | Q-007 -- Q-012 | 6 | 4 | 2 | 0 |
-| Security | Q-013 -- Q-018 | 6 | 5 | 1 | 0 |
-| Accessibility | Q-019 -- Q-021 | 3 | 0 | 2 | 1 |
-| Coverage | Q-022 -- Q-027 | 6 | 2 | 3 | 1 |
-| Observability | Q-028 -- Q-032 | 5 | 3 | 2 | 0 |
-| Data | Q-033 -- Q-036 | 4 | 3 | 1 | 0 |
-| **Total** | | **36** | **20** | **13** | **3** |
+| Performance | Q-001 – Q-010 | 10 | 6 | 3 | 1 |
+| Reliability | Q-011 – Q-018 | 8 | 5 | 3 | 0 |
+| Security | Q-019 – Q-028 | 10 | 8 | 2 | 0 |
+| Accessibility | Q-029 – Q-033 | 5 | 0 | 3 | 2 |
+| Coverage | Q-034 – Q-041 | 8 | 3 | 4 | 1 |
+| Observability | Q-042 – Q-048 | 7 | 4 | 3 | 0 |
+| Interface Parity | Q-049 – Q-053 | 5 | 4 | 1 | 0 |
+| Data | Q-054 – Q-059 | 6 | 4 | 2 | 0 |
+| Cost | Q-060 – Q-064 | 5 | 4 | 1 | 0 |
+| **Total** | | **64** | **38** | **22** | **4** |
 
 ---
 
-## 4. Performance (Q-001 -- Q-006)
+## 4. Performance (Q-001 – Q-010)
+
+**PRD traceability:** M1, M2, M3, M5
 
 ```
-Q-001: Performance --- Agent invocation latency SHALL NOT exceed 30 seconds at p95
-for haiku-tier agents or 120 seconds at p95 for opus-tier agents, measured from
-SDK invoke() call to result return, excluding network transit to Claude API.
-Verify: Prometheus histogram `agent_invocation_duration_seconds` bucketed by
-agent_tier; CI runs a 50-invocation load test per tier and asserts p95 thresholds
-via pytest-benchmark; Grafana alert fires if rolling 5-minute p95 exceeds limit.
+Q-001: Performance — MCP tool read response time SHALL NOT exceed 500ms at p95,
+measured from MCP request receipt to response dispatch, excluding Claude client
+network transit. Verify: Prometheus histogram `mcp_tool_duration_seconds{operation=
+"read"}` with p95 assertion; CI runs 200-request load test against each MCP read
+tool and asserts p95 < 500ms via pytest-benchmark; Grafana alert fires if rolling
+5-minute p95 exceeds 500ms. [P0] [C] [M1]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Priya
 
 ```
-Q-002: Performance --- A full 12-document pipeline run SHALL complete in less than
-30 minutes wall-clock time, measured from pipeline_runs.started_at to
-pipeline_runs.completed_at, when executed with default parallelism settings and
-no human-approval gates pending.
-Verify: Integration test `test_full_pipeline_e2e` executes all 12 agents against
-golden inputs and asserts wall-clock < 1800s; production pipeline_runs table
-queried nightly by a scheduled job that flags any run exceeding 30 minutes;
-Grafana dashboard panel "Pipeline Duration p95" with 30-min threshold line.
+Q-002: Performance — MCP tool write/trigger response time SHALL NOT exceed 2s at
+p95, measured from MCP request receipt to response dispatch. Verify: Prometheus
+histogram `mcp_tool_duration_seconds{operation="write"}` with p95 assertion; CI
+runs 100-request load test against each MCP write tool and asserts p95 < 2s;
+Grafana alert fires if rolling 5-minute p95 exceeds 2s. [P0] [C] [M1]
 ```
-**Priority:** P0 | **Cadence:** Continuous + Gate | **Owner:** Sarah
 
 ```
-Q-003: Performance --- Dashboard initial page load SHALL complete in less than
-3 seconds (DOMContentLoaded) and subsequent in-app navigation SHALL complete in
-less than 500 milliseconds, measured via Lighthouse CI on a simulated 4G
-connection with 4x CPU throttling.
-Verify: Lighthouse CI GitHub Action runs on every PR touching `dashboard/**`;
-asserts First Contentful Paint < 2s, Time to Interactive < 3s; Streamlit
-performance profiler measures navigation transitions and asserts < 500ms;
-synthetic monitoring (Playwright script) runs every 15 minutes in staging.
+Q-003: Performance — Each MCP server (agents:3100, governance:3101, knowledge:3102)
+SHALL reach ready state within 5 seconds of process start, defined as accepting
+the first MCP initialize handshake. Verify: Integration test `test_mcp_server_
+startup` times process spawn to first successful initialize call; CI asserts < 5s
+for all 3 servers; startup time logged to `mcp_server_startup_seconds` metric.
+[P0] [G]
 ```
-**Priority:** P1 | **Cadence:** Gate + Periodic | **Owner:** Priya
 
 ```
-Q-004: Performance --- SessionStore read and write operations SHALL NOT exceed
-50 milliseconds at p95, measured at the Python asyncpg call boundary including
-connection acquisition from the pool.
-Verify: Unit test `test_session_store_latency` runs 1000 read/write cycles and
-asserts p95 < 50ms against a local PostgreSQL instance; production metric
-`session_store_op_duration_ms` emitted on every call; Grafana alert if rolling
-1-minute p95 exceeds 50ms.
+Q-004: Performance — REST API response time SHALL NOT exceed 500ms at p95 for all
+GET endpoints and 1s at p95 for all POST/PUT/PATCH endpoints, measured from aiohttp
+request receipt to response dispatch. Verify: Prometheus histogram `http_request_
+duration_seconds` bucketed by method and route; CI runs k6 load test with 50
+concurrent users for 60s and asserts p95 thresholds; Grafana alert on threshold
+breach. [P0] [C] [M1]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Priya
 
 ```
-Q-005: Performance --- ManifestLoader.validate() SHALL complete in less than
-200 milliseconds per manifest file, including JSON Schema validation and
-tool-permission cross-referencing.
-Verify: Benchmark test `test_manifest_validation_speed` loads all 48 agent
-manifests and asserts each validates in < 200ms; CI gate fails if any single
-manifest exceeds threshold; metric `manifest_validation_ms` logged per load.
+Q-005: Performance — Dashboard page load time SHALL NOT exceed 2s at p95 for any
+page, measured from browser navigation start to Streamlit `onLoad` complete.
+Verify: Synthetic monitoring job (Playwright) hits each dashboard route every 60s
+and records `page_load_ms`; CI runs Lighthouse against each page and asserts
+Performance score >= 70; alert fires if rolling p95 exceeds 2s. [P0] [C] [M3]
 ```
-**Priority:** P1 | **Cadence:** Gate | **Owner:** Sarah
 
 ```
-Q-006: Performance --- All non-LLM REST API endpoints (health, config, list,
-status) SHALL respond in less than 200 milliseconds at p95 under a sustained
-load of 100 concurrent requests.
-Verify: Locust load test in CI targets `/health`, `/agents`, `/pipelines`,
-`/cost` endpoints with 100 concurrent users for 60 seconds; asserts p95 < 200ms
-and 0% error rate; production metric `api_response_duration_ms` partitioned by
-endpoint with Grafana alerting.
+Q-006: Performance — Dashboard Fleet Health Overview page SHALL load in under 1s at
+p95, including all agent status tiles and summary metrics. Verify: Dedicated
+synthetic monitor targeting `/fleet-health` route; Streamlit server-side render
+time logged to `dashboard_render_seconds{page="fleet_health"}`; CI Playwright test
+asserts full render < 1s. [P0] [C] [M3]
 ```
-**Priority:** P2 | **Cadence:** Gate + Continuous | **Owner:** Priya
-
----
-
-## 5. Reliability (Q-007 -- Q-012)
 
 ```
-Q-007: Reliability --- The platform SHALL maintain 99.5% monthly uptime for all
-critical-path services (SDK runtime, pipeline orchestrator, SessionStore,
-PostgreSQL), calculated as (total_minutes - downtime_minutes) / total_minutes
-where downtime is defined as inability to accept and process new pipeline runs.
-Verify: Uptime Robot or equivalent synthetic check pings /health every 60 seconds;
-monthly SLA report auto-generated from check history; incident post-mortem
-required for any downtime exceeding 15 minutes; status page updated automatically.
+Q-007: Performance — Pipeline trigger-to-first-output time SHALL NOT exceed 30s,
+measured from `trigger_pipeline` call (MCP or REST) to the first agent writing
+output to session store. Verify: Pipeline run metadata records `first_output_at -
+triggered_at`; integration test `test_pipeline_trigger_latency` asserts < 30s;
+Grafana panel tracks rolling p95. [P0] [C] [M2]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Marcus
 
 ```
-Q-008: Reliability --- Pipeline execution SHALL resume from the last successful
-checkpoint within 60 seconds of a platform restart, using data from the
-pipeline_checkpoints table, without re-executing completed steps or losing
-intermediate outputs.
-Verify: Integration test `test_checkpoint_recovery` kills the orchestrator mid-
-pipeline, restarts it, and asserts: (a) resumed within 60s, (b) no duplicate
-agent invocations, (c) final output matches baseline; chaos engineering job
-runs weekly in staging.
+Q-008: Performance — Shared service method call latency SHALL NOT exceed 200ms at
+p95 for any service method, measured from method entry to return, excluding
+external I/O (Claude API, PostgreSQL). Verify: Decorator-based timing on all
+service methods logging to `service_method_duration_seconds{service, method}`;
+CI unit test suite asserts p95 < 200ms from 1000 iterations per method using
+mock I/O. [P1] [C]
 ```
-**Priority:** P0 | **Cadence:** Gate + Periodic | **Owner:** Sarah
 
 ```
-Q-009: Reliability --- The circuit breaker for Claude API calls SHALL activate
-within 5 seconds after 3 consecutive failures (HTTP 5xx, timeout, or connection
-refused), shifting the agent to a queued-retry state with exponential backoff
-(base 2s, max 60s, jitter +/- 500ms).
-Verify: Unit test `test_circuit_breaker_activation` mocks 3 consecutive 503
-responses and asserts breaker opens within 5s; test `test_circuit_breaker_backoff`
-verifies retry intervals follow exponential schedule; production metric
-`circuit_breaker_state` (closed/open/half-open) emitted on every transition.
+Q-009: Performance — PostgreSQL query execution time SHALL NOT exceed 100ms at p95
+for indexed queries and 500ms at p95 for analytical/aggregate queries. Verify:
+`pg_stat_statements` monitored via Prometheus postgres_exporter; CI migration test
+runs EXPLAIN ANALYZE on all ORM queries and asserts execution plans use indexes;
+slow query log threshold set to 500ms. [P1] [P]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Priya
 
 ```
-Q-010: Reliability --- Recovery Point Objective (RPO) SHALL be 0 (zero data loss)
-for audit_events via synchronous WAL commit, and less than 1 minute for
-session_context and pipeline_runs via WAL archiving with 60-second segments.
-Verify: PostgreSQL configured with `synchronous_commit = on` for audit_events;
-WAL archive shipping lag monitored via `pg_stat_archiver`; restore drill
-executed monthly verifying audit completeness to the transaction and session
-data loss < 60s; automated test restores from backup and counts audit rows.
+Q-010: Performance — Cross-interface round-trip (MCP trigger → pipeline execution
+→ dashboard approval → MCP status confirmation) SHALL complete in under 10 minutes
+excluding human think time. Verify: End-to-end integration test `test_cross_
+interface_roundtrip` with auto-approving gate stub; pipeline run log analysis
+computing delta between MCP `trigger_pipeline` timestamp and MCP `check_pipeline_
+status` returning `completed`; human wait time tracked separately via
+`gate_pending_duration`. [P2] [P] [M5]
 ```
-**Priority:** P0 | **Cadence:** Periodic (monthly drill) | **Owner:** Marcus
-
-```
-Q-011: Reliability --- If the Claude API becomes unreachable, the platform SHALL
-NOT crash or lose data. Instead it SHALL: (a) queue pending invocations in
-PostgreSQL, (b) activate circuit breaker per Q-009, (c) emit a structured warning
-log, (d) return a degraded-mode status via /health, (e) automatically retry when
-connectivity restores. No invocation SHALL be silently dropped.
-Verify: Integration test `test_graceful_degradation` blocks Claude API DNS,
-submits 10 invocations, restores DNS, and asserts all 10 eventually complete
-with correct outputs; production alert fires if /health reports degraded for
-more than 5 minutes.
-```
-**Priority:** P1 | **Cadence:** Gate + Periodic | **Owner:** Priya
-
-```
-Q-012: Reliability --- The asyncpg connection pool SHALL recover from a full
-database restart within 10 seconds, re-establishing the minimum pool size
-without manual intervention and without dropping in-flight requests that can
-be retried.
-Verify: Integration test `test_db_pool_recovery` restarts PostgreSQL, issues
-requests, and asserts: (a) pool re-establishes within 10s, (b) retryable
-requests succeed, (c) non-retryable requests return 503 (not 500 or hang);
-production metric `db_pool_active_connections` monitored with alert on sustained
-zero count.
-```
-**Priority:** P1 | **Cadence:** Gate + Periodic | **Owner:** Marcus
 
 ---
 
-## 6. Security (Q-013 -- Q-018)
+## 5. Reliability (Q-011 – Q-018)
+
+**PRD traceability:** M6, M8
 
 ```
-Q-013: Security --- Agent outputs SHALL contain zero secrets, PII, or sensitive
-credentials. A PII/secret scanner SHALL execute on every agent output before it
-is persisted to SessionStore or returned to the caller. Detected secrets SHALL
-cause the output to be rejected, the invocation to be flagged in audit_events
-with reason "secret_detected", and an alert to fire within 30 seconds.
-Verify: Scanner runs regex + entropy-based detection (API keys, JWTs, SSNs,
-emails, credit card numbers) via `detect-secrets` library integrated as a
-post-processing hook in BaseAgent; unit tests with 20+ secret patterns assert
-100% detection; CI gate runs `detect-secrets scan` on all test fixtures;
-production metric `secret_detections_total` tracked with zero-tolerance alert.
+Q-011: Reliability — MCP server crash recovery SHALL complete within 30s, defined
+as time from process exit to accepting new MCP connections. The process supervisor
+(systemd/Docker restart policy) SHALL automatically restart crashed MCP servers.
+Verify: Chaos test `test_mcp_crash_recovery` kills each MCP server process and
+asserts reconnection within 30s; supervisor configured with `restart: always` and
+`restart_delay: 5s`; Prometheus `mcp_server_restarts_total` counter tracked.
+[P0] [C]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Lisa
 
 ```
-Q-014: Security --- Every REST API and WebSocket endpoint SHALL require valid
-authentication. Public endpoints are limited to: GET /health (unauthenticated,
-returns only {"status":"ok"}). All other endpoints SHALL validate a JWT bearer
-token (RS256, max 1-hour expiry) or API key (SHA-256 hashed, stored in
-agent_registry). Requests with missing, expired, or invalid credentials SHALL
-receive HTTP 401 with no information leakage in the response body.
-Verify: Integration test `test_auth_enforcement` iterates all registered routes
-and asserts 401 for unauthenticated requests; OWASP ZAP scan runs in CI on
-every release candidate; JWT expiry test confirms rejection of tokens older
-than 3600 seconds.
+Q-012: Reliability — MCP connection resilience SHALL survive transient network
+disruptions up to 30s without data loss. Clients SHALL automatically reconnect
+and resume after network blip. Verify: Integration test `test_mcp_network_
+resilience` uses `tc netem` (or equivalent) to inject 30s network partition then
+verifies client reconnects and pending operations complete; MCP SDK retry config:
+3 retries with exponential backoff (1s, 2s, 4s). [P0] [C]
 ```
-**Priority:** P0 | **Cadence:** Gate + Periodic | **Owner:** Priya
 
 ```
-Q-015: Security --- Row-Level Security (RLS) SHALL be enabled on all multi-tenant
-tables (agent_registry, cost_metrics, audit_events, pipeline_runs,
-session_context, approval_requests, pipeline_checkpoints, knowledge_exceptions).
-Every query executed by the application SHALL run under a PostgreSQL role that
-has RLS policies enforced, scoped by project_id and client_id. The superuser
-role SHALL NOT be used by the application at runtime.
-Verify: SQL migration test `test_rls_enforcement` connects as the application
-role and asserts: (a) SELECT returns only rows matching the session's
-project_id/client_id, (b) INSERT with mismatched tenant IDs is rejected,
-(c) the application role is not a superuser; `pg_policies` catalog queried
-in CI to confirm policies exist on all 8 tables.
+Q-013: Reliability — REST API uptime SHALL be >= 99.5% measured over any rolling
+30-day window, excluding planned maintenance windows announced 48h in advance.
+Verify: Synthetic health check (`GET /health`) every 30s from external monitor;
+uptime computed as `(total_checks - failed_checks) / total_checks * 100`;
+PagerDuty alert if 5-minute availability drops below 99%. [P0] [C]
 ```
-**Priority:** P0 | **Cadence:** Gate | **Owner:** Marcus
 
 ```
-Q-016: Security --- All external connections (Claude API, PostgreSQL if remote,
-webhook callbacks, dashboard-to-API) SHALL use TLS 1.2 or higher. TLS 1.0 and
-1.1 SHALL be disabled at the server configuration level. Certificate validation
-SHALL NOT be disabled in any environment including development.
-Verify: SSL Labs scan (or equivalent) runs against all exposed endpoints in CI;
-`testssl.sh` script asserts no TLS 1.0/1.1 support; Python `ssl` context in
-aiohttp configured with `ssl.PROTOCOL_TLS_CLIENT` and minimum_version =
-TLSVersion.TLSv1_2; grep for `verify=False` or `ssl=False` in CI fails the
-build if found in non-test code.
+Q-014: Reliability — Dashboard availability SHALL be >= 99.0% measured over any
+rolling 30-day window. Verify: Synthetic monitor hitting Streamlit health endpoint
+every 60s; availability computed from successful responses; alert on 5-minute
+downtime. [P1] [C]
 ```
-**Priority:** P0 | **Cadence:** Gate + Periodic | **Owner:** Marcus
 
 ```
-Q-017: Security --- The project SHALL have zero critical or high severity CVEs in
-production dependencies, as reported by `pip-audit` and `safety` scanners.
-Medium-severity CVEs SHALL be triaged within 7 days. A Software Bill of
-Materials (SBOM) in CycloneDX format SHALL be generated on every release.
-Verify: `pip-audit --strict` and `safety check` run in CI on every PR and block
-merge on critical/high findings; Dependabot or Renovate configured for
-automated dependency PRs; SBOM generated via `cyclonedx-py` and stored as
-release artifact; weekly scheduled scan of production dependencies.
+Q-015: Reliability — Pipeline completion rate SHALL exceed 95% of triggered runs
+producing all 12 documents without manual intervention, measured over rolling 30-day
+window. Verify: SQL query `SELECT COUNT(*) FILTER (WHERE status = 'completed' AND
+document_count = 12) * 100.0 / COUNT(*) FROM pipeline_runs WHERE triggered_at >
+now() - interval '30 days'`; weekly report; alert if rate drops below 95%. [P0] [P]
+[M8]
 ```
-**Priority:** P0 | **Cadence:** Gate + Periodic (weekly) | **Owner:** Sarah
 
 ```
-Q-018: Security --- Tier-0 (T0) agents operating in autonomous mode SHALL NOT
-have access to the Bash tool, file-system write operations, or network egress
-beyond the Claude API. Tool permissions SHALL be declared in the agent manifest
-and enforced by the SDK runtime before tool invocation. Any attempt by an agent
-to invoke a disallowed tool SHALL be blocked, logged to audit_events, and
-counted in metric `tool_permission_violations_total`.
-Verify: Unit test `test_t0_tool_restrictions` loads every T0 agent manifest and
-asserts Bash, file_write, and network tools are absent from allowed_tools;
-integration test mocks a T0 agent attempting Bash and asserts the call is
-blocked with an audit entry; CI gate scans all manifests for policy compliance.
+Q-016: Reliability — Shared service layer error rate SHALL NOT exceed 1% of total
+invocations per service per rolling 1-hour window. Verify: Prometheus counter
+`service_errors_total{service}` divided by `service_calls_total{service}`;
+Grafana alert fires if any service exceeds 1% error rate in 1h; CI asserts zero
+errors in happy-path integration tests. [P0] [C]
 ```
-**Priority:** P1 | **Cadence:** Gate | **Owner:** Lisa
+
+```
+Q-017: Reliability — All 48 agents SHALL pass health checks and respond to
+invocations. Agent manifest validation SHALL confirm all 48 manifests load and
+validate against `agent-manifest.schema.json`. Verify: `pytest tests/test_agent_
+registry.py` confirms all 48 manifests load and validate; nightly CI job runs
+health check against each agent; Prometheus gauge `agents_healthy_total` tracked.
+[P1] [P] [M6]
+```
+
+```
+Q-018: Reliability — Pipeline checkpoint/resume SHALL survive process restart.
+If the orchestrator crashes mid-pipeline, restart SHALL resume from the last
+completed phase, not from the beginning. Verify: Integration test `test_pipeline_
+checkpoint_resume` triggers a pipeline, kills the orchestrator after phase 3
+completes, restarts, and asserts phases 1-3 are not re-executed; checkpoint state
+stored in `pipeline_runs.checkpoint_state` JSONB column. [P1] [C]
+```
 
 ---
 
-## 7. Accessibility (Q-019 -- Q-021)
+## 6. Security (Q-019 – Q-028)
+
+**PRD traceability:** M10
 
 ```
-Q-019: Accessibility --- The Streamlit dashboard SHALL comply with WCAG 2.1 Level
-AA success criteria for all interactive pages: fleet health, cost monitoring,
-pipeline runs, audit logs, and approval queue. Non-compliant elements SHALL be
-tracked as P1 bugs.
-Verify: axe-core accessibility audit runs via Playwright on every dashboard PR,
-scanning all 5 primary pages; CI gate fails on any Level A or AA violation;
-quarterly manual audit by an accessibility specialist using NVDA screen reader;
-results tracked in accessibility-audit.json artifact.
+Q-019: Security — Every MCP tool call SHALL require a valid API key in the MCP
+authentication handshake. Unauthenticated requests SHALL receive an MCP error
+response with code -32001 (Unauthorized). Verify: Integration test `test_mcp_auth_
+required` sends requests without API key and asserts error code -32001; penetration
+test confirms no MCP tool is accessible without authentication; audit log records
+all authentication failures. [P0] [C]
 ```
-**Priority:** P1 | **Cadence:** Gate + Periodic (quarterly) | **Owner:** Priya
 
 ```
-Q-020: Accessibility --- All interactive elements in the dashboard (buttons, links,
-form controls, data tables, modal dialogs, approval actions) SHALL be fully
-operable via keyboard alone, with visible focus indicators and logical tab order.
-No keyboard traps SHALL exist.
-Verify: Playwright test `test_keyboard_navigation` tabs through every interactive
-element on each page and asserts: (a) all elements reachable, (b) focus
-indicator visible (outline width >= 2px), (c) Escape closes modals, (d) no
-element traps focus; axe-core "keyboard" rule group included in CI scan.
+Q-020: Security — MCP tool input parameters SHALL be validated against JSON Schema
+definitions before execution. No tool handler SHALL directly interpolate user-
+supplied parameters into SQL queries, shell commands, or file paths. Verify: Static
+analysis (semgrep rule `mcp-sql-injection`) scans all tool handlers for raw string
+interpolation into queries; CI gate blocks merge on violation; fuzz test sends
+1000 malformed inputs per tool and asserts no unhandled exceptions. [P0] [G]
 ```
-**Priority:** P1 | **Cadence:** Gate | **Owner:** Priya
 
 ```
-Q-021: Accessibility --- All text and interactive elements in the dashboard SHALL
-maintain a color contrast ratio of at least 4.5:1 for normal text and 3:1 for
-large text (>= 18pt or >= 14pt bold), as defined by WCAG 2.1 SC 1.4.3.
-Verify: axe-core contrast rules enforced in CI; Figma design tokens validated
-against contrast checker before implementation; Playwright screenshot
-comparison flags contrast regressions; CSS custom properties for all colors
-centralized in a theme file for single-point-of-change.
+Q-021: Security — MCP resource access SHALL enforce project_id scoping. An MCP
+client authenticated for project P1 SHALL NOT access data belonging to project P2.
+Verify: Integration test `test_mcp_project_isolation` authenticates as project P1,
+attempts to read project P2 data via every MCP tool, and asserts permission denied
+for all; PostgreSQL RLS policy `project_isolation_policy` enforced at database
+level. [P0] [C]
 ```
-**Priority:** P2 | **Cadence:** Gate | **Owner:** Priya
-
----
-
-## 8. Coverage (Q-022 -- Q-027)
 
 ```
-Q-022: Coverage --- The SDK core modules (base_agent.py, manifest_loader.py,
-session_store.py, message_envelope.py, cost_tracker.py, tool_permissions.py)
-SHALL maintain >= 90% line coverage and >= 85% branch coverage as measured by
-coverage.py with the `--branch` flag.
-Verify: `pytest --cov=sdk --cov-branch --cov-fail-under=90` runs in CI on every
-PR; coverage report uploaded to Codecov; PR blocked if SDK core coverage drops
-below 90% line or 85% branch; nightly trend report flags coverage regressions
-> 1 percentage point.
+Q-022: Security — REST API authentication SHALL require either a valid JWT token
+(for dashboard sessions) or a valid API key (for programmatic access) on every
+endpoint except `GET /health` and `POST /auth/login`. Verify: Integration test
+`test_rest_auth_enforcement` iterates every registered route and asserts 401 for
+unauthenticated requests; CI gate runs this test on every PR. [P0] [G]
 ```
-**Priority:** P0 | **Cadence:** Gate | **Owner:** Sarah
 
 ```
-Q-023: Coverage --- The pipeline orchestration modules (orchestrator.py,
-scheduler.py, checkpoint_manager.py, parallel_executor.py) SHALL maintain
->= 85% line coverage and >= 80% branch coverage.
-Verify: `pytest --cov=orchestration --cov-branch --cov-fail-under=85` in CI;
-coverage delta reported on PRs touching orchestration code; merge blocked if
-threshold not met.
+Q-023: Security — REST API input validation SHALL reject payloads exceeding 1MB,
+malformed JSON, and fields failing schema validation with HTTP 400 and structured
+error response. Verify: Fuzz test `test_rest_input_validation` sends oversized
+payloads, malformed JSON, SQL injection attempts, and XSS payloads to every POST
+endpoint and asserts HTTP 400; aiohttp request size limit configured to 1MB.
+[P0] [G]
 ```
-**Priority:** P1 | **Cadence:** Gate | **Owner:** Sarah
 
 ```
-Q-024: Coverage --- All REST API endpoint handlers and middleware (authentication,
-rate limiting, error handling, request validation) SHALL maintain >= 80% line
-coverage.
-Verify: `pytest --cov=api --cov-fail-under=80` in CI; every new endpoint must
-include tests for: (a) happy path, (b) 401 unauthenticated, (c) 400 invalid
-input, (d) 500 internal error; PR template includes coverage checklist.
+Q-024: Security — Dashboard sessions SHALL use secure, HttpOnly, SameSite=Strict
+cookies with 24-hour expiration. Session tokens SHALL be invalidated on logout.
+Verify: Integration test `test_dashboard_session_security` inspects Set-Cookie
+headers for HttpOnly, Secure, and SameSite flags; verifies session token rejected
+after logout; OWASP ZAP scan confirms no session fixation vulnerabilities. [P0] [G]
 ```
-**Priority:** P1 | **Cadence:** Gate | **Owner:** Priya
 
 ```
-Q-025: Coverage --- Dashboard Python code and Streamlit component logic SHALL
-maintain >= 70% line coverage. Visual regression tests SHALL cover all 5
-primary pages.
-Verify: `pytest --cov=dashboard --cov-fail-under=70` in CI; Playwright visual
-regression snapshots for fleet health, cost monitoring, pipeline runs, audit
-logs, and approval queue pages; snapshot diff threshold set to 0.1% pixel
-difference.
+Q-025: Security — Dashboard SHALL implement CSRF protection on all state-mutating
+operations and XSS protection via Content-Security-Policy headers. Verify: OWASP
+ZAP automated scan against all dashboard routes; CSP header validation test asserts
+`script-src 'self'`; Streamlit configured with `server.enableXsrfProtection=true`.
+[P0] [G]
 ```
-**Priority:** P2 | **Cadence:** Gate | **Owner:** Priya
 
 ```
-Q-026: Coverage --- Every agent in the 48-agent fleet SHALL have at minimum:
-(a) 3 golden-path test cases using curated input/expected-output pairs,
-(b) 1 adversarial test case that supplies malformed, oversized, or prompt-
-injection input and asserts graceful rejection. Golden tests SHALL assert
-output confidence >= 0.85.
-Verify: Test discovery script `scripts/verify_agent_tests.py` scans
-`tests/agents/` and asserts each of the 48 agents has >= 3 files matching
-`test_{agent}_golden_*.py` and >= 1 matching `test_{agent}_adversarial_*.py`;
-CI gate fails if any agent is under-tested; test matrix in CI runs all agent
-tests in parallel.
+Q-026: Security — PII detection SHALL scan all agent outputs before persistence.
+Detected PII SHALL be flagged in the audit record and optionally redacted based on
+project policy. Verify: Unit test `test_pii_detection` runs scanner against 200
+synthetic outputs containing SSN, email, phone, credit card patterns and asserts
+>= 99% detection rate; integration test confirms `audit_events.pii_detected`
+flag set correctly. [P0] [C]
 ```
-**Priority:** P0 | **Cadence:** Gate | **Owner:** Sarah
 
 ```
-Q-027: Coverage --- Every named team pipeline (requirements, design, implementation,
-testing, deployment, monitoring, compliance) SHALL have at least one end-to-end
-integration test that executes the full pipeline against synthetic inputs and
-asserts: (a) all expected documents produced, (b) pipeline status = "completed",
-(c) cost within budget, (d) no checkpoint corruption.
-Verify: Integration test suite `tests/integration/test_pipelines.py` contains
-one test per pipeline; CI runs the full suite against a PostgreSQL test database;
-pipeline names validated against pipeline_registry to ensure no pipeline is
-untested; weekly nightly run against staging environment.
+Q-027: Security — No secrets (API keys, tokens, passwords, connection strings)
+SHALL appear in application logs, agent outputs, audit records, or error responses.
+Verify: Log scrubber middleware strips patterns matching secret formats before
+write; CI test `test_no_secrets_in_logs` runs full integration suite, captures all
+log output, and scans for secret patterns (regex for API keys, JWTs, connection
+strings); semgrep rule `no-secrets-in-logs` blocks merges containing hardcoded
+secrets. [P0] [G]
 ```
-**Priority:** P1 | **Cadence:** Gate + Periodic (weekly) | **Owner:** Sarah
+
+```
+Q-028: Security — All inter-service communication SHALL use TLS 1.2+ in production.
+Database connections SHALL use SSL mode `verify-full`. Verify: Integration test
+`test_tls_enforcement` asserts all outbound connections use TLS; PostgreSQL
+connection string includes `sslmode=verify-full`; nmap scan confirms no plaintext
+ports exposed. [P1] [G]
+```
 
 ---
 
-## 9. Observability (Q-028 -- Q-032)
+## 7. Accessibility (Q-029 – Q-033)
 
 ```
-Q-028: Observability --- Every agent invocation SHALL produce a structured JSONL
-audit record containing exactly these 13 fields: timestamp, correlation_id,
-agent_id, agent_tier, pipeline_run_id, project_id, client_id, action,
-input_hash, output_hash, confidence_score, cost_usd, duration_ms. Records
-SHALL be written to both the audit_events table and the JSONL log stream
-within the same transaction.
-Verify: Unit test `test_audit_record_schema` validates every field is present
-and correctly typed on 100 sample invocations; integration test asserts audit
-row count equals invocation count after a pipeline run; JSON Schema validator
-runs on JSONL output in CI; production monitor alerts if any invocation lacks
-a corresponding audit row within 5 seconds.
+Q-029: Accessibility — Dashboard SHALL comply with WCAG 2.1 Level AA for all
+pages, including sufficient color contrast (4.5:1 for normal text, 3:1 for large
+text), focus indicators, and alt text for non-decorative images. Verify: axe-core
+automated scan integrated into CI via Playwright; scan runs against every dashboard
+page; CI gate blocks merge if any Level AA violations detected. [P1] [G]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Lisa
 
 ```
-Q-029: Observability --- Cost tracking SHALL be accurate to within 1% of actual
-Claude API spend, reconciled daily. The cost_metrics table SHALL record
-input_tokens, output_tokens, model, and unit_cost for every invocation. Daily
-reconciliation SHALL compare platform-recorded cost against the Claude API
-billing dashboard (via API) and flag discrepancies exceeding 1%.
-Verify: Daily reconciliation job `scripts/reconcile_costs.py` queries Claude
-billing API and cost_metrics table, computes delta, and asserts |delta| < 1%;
-alert fires on breach; unit test mocks known token counts and asserts cost
-calculation matches expected value to 4 decimal places.
+Q-030: Accessibility — All dashboard interactive elements SHALL be operable via
+keyboard alone, with visible focus indicators and logical tab order. No keyboard
+trap SHALL exist on any page. Verify: Playwright test `test_keyboard_navigation`
+tabs through every page and asserts all interactive elements receive focus in
+logical order; manual audit quarterly. [P1] [G]
 ```
-**Priority:** P0 | **Cadence:** Continuous + Periodic (daily) | **Owner:** David
 
 ```
-Q-030: Observability --- Every log line emitted by the platform SHALL be structured
-JSON containing at minimum: timestamp (ISO-8601), level, logger, message, and
-correlation_id. The correlation_id SHALL propagate across all function calls,
-database queries, and external API calls within a single request or pipeline
-step. Unstructured print() statements SHALL NOT exist in production code.
-Verify: CI linter `scripts/lint_logging.py` scans all Python files for bare
-print() calls and logging calls without correlation_id and fails the build;
-integration test captures log output of a full pipeline run and asserts every
-line parses as valid JSON with all 5 required fields; log aggregator (e.g.,
-Loki) configured to reject non-JSON log lines.
+Q-031: Accessibility — Dashboard SHALL provide ARIA labels for all dynamic content
+regions (agent status tiles, pipeline progress bars, approval queue items) and
+support screen reader navigation. Verify: axe-core ARIA validation; manual screen
+reader test (NVDA/VoiceOver) covering Fleet Health, Pipeline Status, and Approval
+Queue pages quarterly. [P1] [P]
 ```
-**Priority:** P0 | **Cadence:** Gate + Continuous | **Owner:** Marcus
 
 ```
-Q-031: Observability --- Pipeline step duration SHALL be recorded in the
-pipeline_runs table (step_durations JSONB column) for every step, enabling
-queries like "average duration of requirements-agent across all runs this week."
-Step duration SHALL be measured from step dispatch to result receipt, inclusive
-of queue wait time.
-Verify: Integration test `test_step_duration_tracking` runs a 3-step pipeline
-and asserts step_durations contains exactly 3 entries with duration_ms > 0;
-SQL query test validates the JSONB structure; Grafana dashboard panel "Step
-Duration Heatmap" renders correctly from production data.
+Q-032: Accessibility — Dashboard color contrast ratios SHALL meet WCAG 2.1 AA
+minimums: 4.5:1 for normal text (<18pt), 3:1 for large text (>=18pt), 3:1 for
+UI components and graphical objects. Verify: Automated contrast checker in CI
+(axe-core); Lighthouse accessibility audit score >= 90; design token validation
+test asserts all color pairs meet ratio requirements. [P2] [G]
 ```
-**Priority:** P1 | **Cadence:** Continuous | **Owner:** Priya
 
 ```
-Q-032: Observability --- The platform SHALL emit an alert within 60 seconds of any
-budget threshold breach: (a) agent invocation cost > $0.50, (b) agent daily
-cost > $5, (c) project daily cost > $20, (d) fleet daily cost > $50,
-(e) pipeline run cost > $25. Alerts SHALL include: threshold name, current
-value, limit, project_id, and recommended action.
-Verify: Unit test `test_budget_alerts` injects cost records exceeding each
-threshold and asserts alert emission within 60s with all required fields;
-integration test with a mock alert sink verifies end-to-end delivery;
-production alert channel (Slack/PagerDuty) confirmed operational via weekly
-synthetic alert.
+Q-033: Accessibility — Dashboard error messages and status notifications SHALL be
+announced to assistive technologies via ARIA live regions with appropriate
+politeness levels (assertive for errors, polite for status updates). Verify:
+Playwright test validates `aria-live` attributes on notification elements; manual
+screen reader verification quarterly. [P2] [G]
 ```
-**Priority:** P1 | **Cadence:** Continuous | **Owner:** David
 
 ---
 
-## 10. Data (Q-033 -- Q-036)
+## 8. Coverage (Q-034 – Q-041)
+
+**PRD traceability:** M6
 
 ```
-Q-033: Data --- The audit_events table SHALL be append-only. UPDATE and DELETE
-operations SHALL be blocked by a PostgreSQL trigger that raises an exception.
-The trigger SHALL exist in the migration baseline and SHALL NOT be removable
-without a dual-approval PR from both Engineering Lead and Compliance Officer.
-Verify: Migration test `test_audit_immutability` attempts UPDATE and DELETE on
-audit_events and asserts both raise `RAISE EXCEPTION`; CI scans migration
-files for any `DROP TRIGGER` on the immutability trigger and blocks merge;
-weekly audit queries `pg_trigger` catalog to confirm trigger is active;
-production monitoring alerts if trigger is disabled.
+Q-034: Coverage — Shared service layer unit test coverage SHALL be >= 90% line
+coverage and >= 85% branch coverage. The shared service layer is the foundation
+for all three interfaces; it has the HIGHEST coverage requirement. Verify:
+`pytest --cov=src/services --cov-branch` with `--cov-fail-under=90` for line and
+custom branch threshold check; coverage report uploaded to CI artifacts; merge
+blocked if coverage drops below 90%. [P0] [G]
 ```
-**Priority:** P0 | **Cadence:** Gate + Periodic (weekly) | **Owner:** Lisa
 
 ```
-Q-034: Data --- Session context entries SHALL have a configurable TTL (default
-86,400 seconds / 24 hours). Expired entries SHALL be purged by a scheduled
-cleanup job running every hour. The cleanup job SHALL NOT lock the table for
-more than 1 second and SHALL process deletions in batches of 1,000 rows.
-Verify: Unit test `test_session_ttl_enforcement` inserts a record with TTL=1s,
-waits 2s, runs cleanup, and asserts record is deleted; integration test
-verifies batch deletion does not exceed 1s lock time via `pg_stat_activity`;
-production metric `session_cleanup_rows_deleted` and
-`session_cleanup_duration_ms` tracked per run.
+Q-035: Coverage — MCP tool handler test coverage SHALL be >= 85% line coverage
+for all tool handler modules across all 3 MCP servers. Verify: `pytest --cov=
+src/mcp/tools --cov-fail-under=85`; coverage measured per MCP server (agents,
+governance, knowledge); CI gate blocks merge on violation. [P0] [G]
 ```
-**Priority:** P0 | **Cadence:** Periodic (hourly) | **Owner:** Priya
 
 ```
-Q-035: Data --- Agent output size SHALL NOT exceed 100KB per invocation, measured
-as the UTF-8 byte length of the serialized output payload. Outputs exceeding
-100KB SHALL be truncated with a `[TRUNCATED]` marker and a warning logged.
-The full output SHALL be stored in an overflow table (agent_output_overflow)
-with a foreign key to the audit record.
-Verify: Unit test `test_output_size_limit` generates a 150KB output and asserts:
-(a) stored output is <= 100KB, (b) `[TRUNCATED]` marker present, (c) overflow
-row exists with full content; CI gate scans golden test expected outputs and
-warns if any exceed 80KB; production metric `agent_output_bytes` histogrammed
-for capacity planning.
+Q-036: Coverage — REST API route handler test coverage SHALL be >= 85% line
+coverage for all route modules. Verify: `pytest --cov=src/api/routes --cov-fail-
+under=85`; coverage measured across all route modules; CI gate blocks merge on
+violation. [P0] [G]
 ```
-**Priority:** P0 | **Cadence:** Continuous | **Owner:** Sarah
 
 ```
-Q-036: Data --- Data retention SHALL be enforced automatically: audit_events
-retained for 365 days, session_context for 30 days, cost_metrics for 90 days.
-A nightly retention job SHALL delete expired data in batches. Retention
-periods SHALL be configurable via environment variables but SHALL NOT be
-shortened below regulatory minimums (audit: 365 days per SOC2).
-Verify: Retention job `scripts/enforce_retention.py` runs nightly; unit test
-inserts records with timestamps beyond retention and asserts deletion after
-job execution; integration test verifies audit records at 364 days are
-retained and at 366 days are deleted; production metric
-`retention_rows_deleted` by table tracked per run; compliance dashboard
-displays current retention configuration.
+Q-037: Coverage — Dashboard component test coverage SHALL be >= 75% line coverage
+for all Streamlit page modules and widget components. Verify: `pytest --cov=src/
+dashboard --cov-fail-under=75`; Streamlit AppTest framework for component testing;
+CI gate blocks merge on violation. [P1] [G]
 ```
-**Priority:** P1 | **Cadence:** Periodic (nightly) | **Owner:** Lisa
+
+```
+Q-038: Coverage — Integration/parity test suite SHALL include >= 1 end-to-end test
+per cross-interface user journey defined in the INTERACTION-MAP document. Each test
+SHALL exercise the same operation via MCP and REST and assert identical outcomes.
+Verify: Test manifest file `tests/parity/manifest.json` lists all cross-interface
+journeys; CI asserts every journey has a corresponding test file; test count
+validated in `test_parity_coverage` meta-test. [P1] [G]
+```
+
+```
+Q-039: Coverage — Agent test coverage SHALL include >= 3 golden-path test cases
+and >= 1 adversarial test case per agent. Golden-path tests validate expected
+outputs from known inputs; adversarial tests validate graceful handling of
+malformed, oversized, or malicious inputs. Verify: Test manifest `tests/agents/
+manifest.json` lists required test counts per agent; meta-test `test_agent_
+coverage_manifest` asserts >= 3 golden and >= 1 adversarial per agent_id;
+CI gate blocks merge on violation. [P1] [G]
+```
+
+```
+Q-040: Coverage — Mutation testing score SHALL be >= 70% for shared service layer,
+measured by mutmut or equivalent. This ensures tests catch real bugs, not just
+exercise code paths. Verify: `mutmut run --paths-to-mutate=src/services/ --runner=
+pytest` in nightly CI; results published to coverage dashboard; alert if score
+drops below 70%. [P2] [P]
+```
+
+```
+Q-041: Coverage — Every database migration SHALL have a corresponding rollback
+migration and both SHALL be tested in CI. Verify: `pytest tests/test_migrations.py`
+runs every migration forward and backward on a fresh database; CI gate blocks merge
+if any migration lacks a rollback or if rollback fails. [P1] [G]
+```
 
 ---
 
-## 11. Compliance Matrix
+## 9. Observability (Q-042 – Q-048)
 
-The following matrix maps NFRs to external compliance controls. Each mapping has been reviewed by Lisa (Compliance Officer) and is validated by the corresponding verification method.
+**PRD traceability:** M7, M10
 
-### 11.1 SOC2 Trust Service Criteria Mapping
+```
+Q-042: Observability — Every MCP tool call SHALL produce an audit log entry within
+5 seconds of completion containing: trace_id, tool_name, project_id, user_id,
+input_hash, output_hash, duration_ms, cost_usd, timestamp, status, error_code
+(if any). Verify: Integration test `test_mcp_audit_logging` invokes every MCP tool
+and asserts corresponding audit record exists in `audit_events` within 5s with all
+13 required fields populated; nightly reconciliation compares `mcp_invocations`
+count against `audit_events` count. [P0] [C] [M10]
+```
 
-| SOC2 Control | Control Description | Mapped NFRs | Verification |
+```
+Q-043: Observability — Every REST API request SHALL produce a structured log entry
+containing: trace_id, method, path, status_code, duration_ms, user_id, request_id,
+timestamp. Verify: aiohttp middleware `AccessLogMiddleware` emits JSON log per
+request; integration test `test_rest_request_logging` issues requests to every
+endpoint and asserts corresponding log entries; log format validated by JSON schema.
+[P0] [C]
+```
+
+```
+Q-044: Observability — Dashboard user actions (page navigation, filter changes,
+approval decisions, report exports) SHALL be logged with: trace_id, user_id,
+action_type, page, timestamp, metadata. Verify: Streamlit callback wrapper emits
+action events; integration test `test_dashboard_action_logging` navigates through
+all pages and asserts action log entries; log completeness checked weekly. [P1] [C]
+```
+
+```
+Q-045: Observability — Cross-interface trace correlation SHALL use a single trace_id
+propagated from MCP request → shared service → database audit record → REST
+notification → dashboard display. Verify: End-to-end test `test_trace_correlation`
+triggers a pipeline via MCP, retrieves the trace_id, queries audit_events by
+trace_id, checks REST notification payload for same trace_id, and verifies
+dashboard displays the trace_id on the pipeline detail page. [P0] [C]
+```
+
+```
+Q-046: Observability — Cost events SHALL be recorded within 5 seconds of Claude API
+response receipt, containing: agent_id, model, input_tokens, output_tokens,
+cost_usd, pipeline_run_id, trace_id. Verify: Integration test `test_cost_event_
+recording` triggers an agent invocation and asserts cost event exists in
+`cost_events` table within 5s with accurate token counts; weekly reconciliation
+against Anthropic billing API. [P0] [C] [M7]
+```
+
+```
+Q-047: Observability — Structured logs SHALL be emitted in JSON format with
+consistent field names across all three interfaces. Log level SHALL be configurable
+per component without restart (via environment variable or config reload). Verify:
+JSON schema validation test parses sample logs from each component and asserts
+consistent field naming; integration test verifies log level change takes effect
+within 10s. [P1] [C]
+```
+
+```
+Q-048: Observability — Health check endpoints SHALL exist for all services: MCP
+servers (`initialize` handshake), REST API (`GET /health`), Dashboard (`GET /
+_stcore/health`), PostgreSQL (connection pool check). Each SHALL return structured
+status including dependency health. Verify: Synthetic monitor hits all health
+endpoints every 30s; integration test `test_health_endpoints` asserts 200 response
+with expected schema from each endpoint. [P0] [C]
+```
+
+---
+
+## 10. Interface Parity (Q-049 – Q-053)
+
+**PRD traceability:** M5
+
+```
+Q-049: Interface Parity — Every MCP tool SHALL have a corresponding REST API
+endpoint that performs the same operation on the same shared service method. The
+mapping SHALL be documented in an interface parity matrix and validated by CI.
+Verify: Parity matrix file `docs/interface-parity-matrix.json` lists every MCP
+tool and its REST equivalent; meta-test `test_parity_matrix_completeness` asserts
+every registered MCP tool has a REST mapping; CI gate blocks merge if a new MCP
+tool lacks a REST equivalent. [P0] [G]
+```
+
+```
+Q-050: Interface Parity — MCP and REST SHALL return consistent error codes for the
+same operation failure. A shared error code enum SHALL be used by both interfaces,
+mapped to MCP error codes and HTTP status codes respectively. Verify: Error code
+mapping file `src/shared/error_codes.py` defines all error codes with MCP and HTTP
+mappings; integration test `test_parity_error_codes` triggers the same error
+condition via MCP and REST and asserts the mapped error codes match the enum;
+CI gate blocks divergent error handling. [P0] [G]
+```
+
+```
+Q-051: Interface Parity — The same shared service call invoked from MCP and REST
+SHALL return identical data shapes (same JSON keys, same value types, same nesting
+structure). Verify: Parity test suite `tests/parity/test_data_shape_parity.py`
+calls every shared service method via both MCP tool handler and REST route handler,
+serializes both responses to JSON, and asserts structural equality (keys and types
+match, values may differ only by serialization format); CI gate blocks merge on
+shape divergence. [P0] [G]
+```
+
+```
+Q-052: Interface Parity — Dashboard data displays SHALL reflect the same data
+available via MCP and REST queries with no more than 5 seconds of staleness.
+Verify: Integration test `test_dashboard_data_freshness` writes data via shared
+service, then reads via dashboard component and asserts visibility within 5s;
+Streamlit cache TTL configured <= 5s for real-time pages (Fleet Health, Pipeline
+Status). [P0] [C]
+```
+
+```
+Q-053: Interface Parity — API versioning changes SHALL be applied simultaneously
+to MCP tool schemas and REST endpoint schemas. No interface SHALL expose a newer
+or older schema version than another. Verify: Schema version validation test
+`test_schema_version_parity` extracts version from MCP tool JSON schemas and REST
+OpenAPI spec and asserts equality; CI gate blocks merge if versions diverge. [P1]
+[G]
+```
+
+---
+
+## 11. Data (Q-054 – Q-059)
+
+**PRD traceability:** M10
+
+```
+Q-054: Data — Audit event records SHALL be immutable. No UPDATE or DELETE operation
+SHALL be permitted on the `audit_events` table. Verify: PostgreSQL trigger
+`prevent_audit_mutation` raises exception on UPDATE/DELETE; RLS policy denies
+UPDATE/DELETE to all roles; integration test `test_audit_immutability` attempts
+UPDATE and DELETE on `audit_events` and asserts both fail with permission error;
+database migration test verifies trigger exists. [P0] [C]
+```
+
+```
+Q-055: Data — Data retention policies SHALL be enforced automatically: audit_events
+retained for 365 days, cost_events retained for 90 days, session data retained for
+24 hours. Expired data SHALL be archived to cold storage before deletion. Verify:
+PostgreSQL partition-based retention with `pg_partman`; nightly job `retention_
+enforcement` drops expired partitions after archival; integration test `test_data_
+retention` creates records with backdated timestamps and asserts they are removed
+after retention job runs. [P0] [P]
+```
+
+```
+Q-056: Data — PostgreSQL database SHALL be backed up daily with point-in-time
+recovery capability. Backup verification SHALL restore to a test instance and
+validate row counts weekly. Verify: `pg_dump` or WAL archiving configured with
+daily schedule; weekly restore test `test_backup_restore` restores latest backup
+to ephemeral instance and asserts table existence and row count within 1% of
+source; backup completion logged and alerted on failure. [P0] [P]
+```
+
+```
+Q-057: Data — PII fields (user email, name, API keys) SHALL be encrypted at rest
+using AES-256 via PostgreSQL pgcrypto extension or application-level encryption.
+Verify: Database schema test `test_pii_encryption` asserts PII columns use
+`pgp_sym_encrypt`; integration test writes and reads PII, verifying raw column
+value is ciphertext; annual penetration test validates encryption at rest. [P0] [G]
+```
+
+```
+Q-058: Data — Database schema changes SHALL be applied exclusively through versioned
+migrations (Alembic or equivalent). No manual DDL SHALL be executed in production.
+Verify: CI gate runs `alembic check` and blocks merge if model state diverges from
+migration history; production deploy pipeline applies migrations automatically;
+audit log records all DDL execution. [P1] [G]
+```
+
+```
+Q-059: Data — Database connection pool SHALL be sized between 10 (min) and 50 (max)
+connections per service instance, with connection timeout of 5s and idle timeout of
+300s. Verify: Connection pool metrics exported to Prometheus (`db_pool_active`,
+`db_pool_idle`, `db_pool_waiting`); alert fires if pool utilization exceeds 80%
+for 5 minutes; integration test validates pool configuration parameters. [P1] [C]
+```
+
+---
+
+## 12. Cost (Q-060 – Q-064)
+
+**PRD traceability:** M7, M9
+
+```
+Q-060: Cost — Pipeline cost per full 12-document generation run SHALL NOT exceed
+$25.00. The cost tracker SHALL enforce a hard-stop at $25.00, halting the pipeline
+and notifying the user. Verify: Real-time cost accumulator in G1-cost-tracker
+sums `cost_events` per `pipeline_run_id`; integration test `test_pipeline_cost_
+ceiling` runs a full pipeline and asserts total cost < $25; hard-stop test
+simulates cost reaching $25 and asserts pipeline halts. [P0] [C] [M9]
+```
+
+```
+Q-061: Cost — Individual agent invocation cost SHALL NOT exceed $0.50. Agent
+invocations approaching $0.50 SHALL receive a warning at $0.40 and a hard-stop at
+$0.50. Verify: Agent cost guard in shared service layer checks accumulated cost
+per invocation; integration test `test_agent_cost_ceiling` uses a long-running
+prompt and asserts hard-stop triggers at $0.50; cost event records individual
+invocation costs. [P0] [C]
+```
+
+```
+Q-062: Cost — Cost tracking accuracy SHALL be within 2% of actual Anthropic API
+billing at fleet, project, and agent aggregation levels. Verify: Weekly
+reconciliation job `cost_reconciliation` compares `cost_events` totals against
+Anthropic billing API; automated alert if delta exceeds 2% at any aggregation
+level; monthly report published to compliance dashboard. [P0] [P] [M7]
+```
+
+```
+Q-063: Cost — Budget enforcement SHALL follow a fail-safe pattern: if the cost
+tracking database is unavailable, agent invocations SHALL be blocked (fail-closed),
+NOT allowed to proceed without tracking (fail-open). Verify: Integration test
+`test_cost_failsafe` disconnects the database during an agent invocation and
+asserts the invocation is rejected with a cost-tracking-unavailable error; circuit
+breaker pattern implemented in cost service. [P0] [C]
+```
+
+```
+Q-064: Cost — Budget tiers SHALL be enforced at three levels: Fleet ($50/day),
+Project ($20/day), Agent ($5/day). Exceeding any tier SHALL block further
+invocations at that level and notify the project owner. Verify: Integration test
+`test_budget_tier_enforcement` simulates spend exceeding each tier and asserts
+invocation blocked; cost dashboard displays current spend vs. budget for each tier;
+Prometheus gauges `budget_remaining{tier}` tracked. [P1] [C]
+```
+
+---
+
+## 13. Compliance Matrix
+
+| NFR | SOC2 Trust Service Criteria | EU AI Act | Notes |
 |---|---|---|---|
-| **CC6.1** | Logical and Physical Access Controls | Q-014, Q-015, Q-018 | JWT auth enforced on all endpoints (Q-014); RLS on all tenant tables (Q-015); T0 agents sandboxed from privileged tools (Q-018). Verified by integration tests and OWASP ZAP scans. |
-| **CC6.6** | System Boundaries and External Connections | Q-016 | TLS 1.2+ enforced on all external connections. Verified by testssl.sh and SSL Labs scans in CI. |
-| **CC7.1** | System Monitoring | Q-028, Q-029, Q-030, Q-031, Q-032 | 13-field audit on every invocation (Q-028); cost accuracy within 1% (Q-029); structured logging with correlation_id (Q-030); step duration tracking (Q-031); budget alerts within 60s (Q-032). Verified by continuous monitoring and daily reconciliation. |
-| **CC7.2** | Incident Detection and Response | Q-009, Q-011, Q-032 | Circuit breaker activates within 5s (Q-009); graceful degradation on API failure (Q-011); budget breach alerts within 60s (Q-032). Verified by chaos engineering tests and alert sink integration tests. |
-| **CC7.3** | Incident Recovery | Q-008, Q-010, Q-012 | Checkpoint recovery within 60s (Q-008); RPO=0 for audit data (Q-010); DB pool recovery within 10s (Q-012). Verified by integration tests and monthly restore drills. |
-| **CC8.1** | Change Management and Software Integrity | Q-017, Q-022, Q-023, Q-024, Q-026, Q-027 | Zero critical CVEs (Q-017); coverage gates on all modules (Q-022--Q-024); golden + adversarial tests for all agents (Q-026); integration tests for all pipelines (Q-027). Verified by CI gates that block merge on violation. |
-| **CC9.1** | Risk Mitigation | Q-013, Q-035 | PII/secret scanning on all outputs (Q-013); output size limits to prevent resource exhaustion (Q-035). Verified by scanner integration tests and CI gates. |
+| Q-019 (MCP auth) | CC6.1 — Logical access security | Art. 9 — Access control | API key required for all MCP tool calls |
+| Q-020 (MCP input validation) | CC6.1 — Input validation | Art. 15 — Accuracy/robustness | Prevents injection attacks via MCP params |
+| Q-021 (Project isolation) | CC6.3 — Restrict access | Art. 9 — Access control | RLS enforces project_id scoping |
+| Q-022 (REST auth) | CC6.1 — Logical access security | Art. 9 — Access control | JWT + API key on all endpoints |
+| Q-023 (REST input validation) | CC6.1 — Input validation | Art. 15 — Accuracy/robustness | Schema validation, size limits |
+| Q-024 (Session security) | CC6.1 — Session management | — | Secure cookies, 24h expiry |
+| Q-025 (CSRF/XSS) | CC6.1 — Web security | — | CSP headers, XSRF protection |
+| Q-026 (PII detection) | CC6.5 — Data classification | Art. 10 — Data governance | Scan all agent outputs for PII |
+| Q-027 (No secrets in logs) | CC6.1 — Credential protection | — | Log scrubber, semgrep rules |
+| Q-028 (TLS enforcement) | CC6.7 — Encryption in transit | — | TLS 1.2+ for all connections |
+| Q-042 (MCP audit logging) | CC7.2 — Monitoring | Art. 12 — Record-keeping | Every MCP call produces audit record |
+| Q-043 (REST audit logging) | CC7.2 — Monitoring | Art. 12 — Record-keeping | Every REST request logged |
+| Q-045 (Trace correlation) | CC7.2 — Cross-system monitoring | Art. 12 — Traceability | Single trace_id across interfaces |
+| Q-054 (Audit immutability) | CC7.3 — Tamper-evident logs | Art. 12 — Record-keeping | No UPDATE/DELETE on audit_events |
+| Q-055 (Data retention) | CC6.5 — Data lifecycle | Art. 10 — Data governance | 365d audit, 90d cost, 24h session |
+| Q-056 (Database backup) | CC7.5 — Recovery | — | Daily backup, weekly restore test |
+| Q-057 (PII encryption) | CC6.7 — Encryption at rest | Art. 10 — Data governance | AES-256 for PII fields |
+| Q-060 (Cost ceiling) | CC8.1 — Change management | Art. 9 — Risk management | Hard-stop at $25/pipeline run |
+| Q-062 (Cost accuracy) | CC8.1 — Monitoring accuracy | Art. 13 — Transparency | Within 2% of Anthropic billing |
+| Q-063 (Cost fail-safe) | CC8.1 — System integrity | Art. 15 — Robustness | Fail-closed on DB unavailability |
+| Q-015 (Pipeline completion) | CC8.1 — Processing integrity | Art. 15 — Reliability | >95% completion rate |
+| Q-029 (WCAG 2.1 AA) | — | Art. 5 — Non-discrimination | Dashboard accessibility compliance |
+| Q-049 (Interface parity) | — | Art. 13 — Transparency | Consistent behavior across interfaces |
+| Q-051 (Data shape parity) | CC8.1 — Processing integrity | Art. 13 — Transparency | Identical responses from MCP/REST |
 
-### 11.2 EU AI Act Mapping
+---
 
-| AI Act Article | Requirement | Mapped NFRs | Verification |
+## 14. Quality Scoring Rubric
+
+This rubric defines the scoring model used by the QualityScorer agent to evaluate all document outputs in the pipeline. Every generated document is scored against these five dimensions.
+
+```yaml
+quality_rubric:
+  completeness:
+    weight: 0.25
+    threshold: 0.85
+    description: "All required sections present, all fields populated"
+    verify: "Schema validation against document template"
+    scoring_guide:
+      1.0: "Every required section present, every field populated, no TODOs or placeholders"
+      0.85: "All required sections present, <= 2 optional fields missing"
+      0.70: "1-2 required sections missing or > 5 fields unpopulated"
+      0.50: "3+ required sections missing"
+      0.0: "Document structurally incomplete or wrong template"
+
+  accuracy:
+    weight: 0.30
+    threshold: 0.85
+    description: "Facts match source inputs, no hallucinated data"
+    verify: "Cross-reference check against input documents"
+    scoring_guide:
+      1.0: "Every fact traces to source input, zero hallucinated data"
+      0.85: "All critical facts accurate, <= 2 minor inaccuracies in non-critical fields"
+      0.70: "1-2 factual errors in critical fields or > 5 minor inaccuracies"
+      0.50: "3+ factual errors in critical fields"
+      0.0: "Pervasive hallucination or contradicts source inputs"
+
+  format_compliance:
+    weight: 0.15
+    threshold: 0.95
+    description: "Follows naming conventions, ID formats, data shapes"
+    verify: "Regex/schema validation of IDs, names, shapes"
+    scoring_guide:
+      1.0: "All IDs match format (Q-NNN, F-NNN, etc.), all naming conventions followed"
+      0.95: "1-2 minor format deviations (e.g., inconsistent capitalization)"
+      0.85: "3-5 format violations or 1 ID format error"
+      0.70: "> 5 format violations or > 2 ID format errors"
+      0.0: "No consistent formatting applied"
+
+  cross_interface_parity:
+    weight: 0.15
+    threshold: 1.00
+    description: "MCP and REST return identical data for same operation"
+    verify: "Automated parity test suite"
+    scoring_guide:
+      1.0: "All operations produce identical data shapes and semantically equivalent values across MCP and REST"
+      0.90: "1-2 non-critical field differences (e.g., date format variation)"
+      0.75: "Structural differences in 1-2 operations"
+      0.50: "Structural differences in > 2 operations or missing fields"
+      0.0: "MCP and REST return fundamentally different data models"
+
+  traceability:
+    weight: 0.15
+    threshold: 0.90
+    description: "Every item traces to PRD capability or INTERACTION-MAP ID"
+    verify: "Linkage check: every F-NNN → C-NNN, every S-NNN → I-NNN"
+    scoring_guide:
+      1.0: "Every item has a valid trace link, no orphaned items, no broken references"
+      0.90: "<= 5% of items missing trace links"
+      0.75: "5-15% of items missing trace links"
+      0.50: "> 15% of items missing trace links"
+      0.0: "No traceability implemented"
+
+scoring:
+  pass: ">= 0.85 weighted average"
+  conditional_pass: ">= 0.75 (must fix within 1 sprint)"
+  fail: "< 0.75 (regenerate document)"
+
+  weighted_formula: |
+    score = (completeness * 0.25) + (accuracy * 0.30) + (format_compliance * 0.15)
+            + (cross_interface_parity * 0.15) + (traceability * 0.15)
+
+  minimum_dimension_scores:
+    completeness: 0.70
+    accuracy: 0.70
+    format_compliance: 0.80
+    cross_interface_parity: 0.75
+    traceability: 0.70
+
+  override_rules:
+    - "If any dimension scores below its minimum, overall result is 'fail' regardless of weighted average"
+    - "If cross_interface_parity < 1.0, result is capped at 'conditional_pass' even if weighted average >= 0.85"
+    - "If accuracy < 0.85, result is capped at 'conditional_pass' even if weighted average >= 0.85"
+```
+
+---
+
+## 15. NFR Verification Automation Summary
+
+| Verification Method | NFR Count | Execution Context | Frequency |
 |---|---|---|---|
-| **Article 9** | Risk Management System | Q-009, Q-011, Q-013, Q-018, Q-032 | Circuit breaker and graceful degradation manage operational risk (Q-009, Q-011); secret scanning prevents data leakage risk (Q-013); tool sandboxing limits agent capability risk (Q-018); budget alerts manage financial risk (Q-032). |
-| **Article 12** | Record-Keeping | Q-028, Q-029, Q-033, Q-036 | 13-field audit record on every invocation (Q-028); cost tracking per invocation (Q-029); immutable audit trail (Q-033); retention policies meeting regulatory minimums (Q-036). |
-| **Article 13** | Transparency | Q-028, Q-030 | Full audit trail with input/output hashes enables traceability (Q-028); structured logging with correlation_id enables end-to-end request tracing (Q-030). |
-| **Article 14** | Human Oversight | Q-018, Q-026 | Tiered agent permissions with human-in-the-loop for sensitive operations (Q-018); golden tests establish known-good baselines and adversarial tests verify rejection of bad inputs (Q-026). Approval queue in dashboard provides runtime human override. |
-| **Article 15** | Accuracy, Robustness, Cybersecurity | Q-001, Q-007, Q-010, Q-016, Q-017 | Latency SLAs ensure timely responses (Q-001); uptime SLA ensures availability (Q-007); RPO=0 ensures data durability (Q-010); TLS enforcement ensures transit security (Q-016); CVE scanning ensures supply chain security (Q-017). |
-| **Article 52** | Transparency for AI-Generated Content | Q-028 | Every output is traceable to its agent, model, confidence score, and pipeline context via the 13-field audit record. Users can query the audit trail to determine which outputs were AI-generated and with what confidence. |
+| CI gate (pytest) | 38 | GitHub Actions / CI pipeline | Every PR merge |
+| Prometheus + Grafana alert | 16 | Production runtime | Continuous |
+| Synthetic monitoring (Playwright) | 5 | External monitor | Every 30-60s |
+| Load test (k6 / pytest-benchmark) | 6 | CI pipeline | Nightly |
+| OWASP ZAP scan | 2 | CI pipeline | Weekly |
+| axe-core accessibility scan | 4 | CI pipeline | Every PR merge |
+| Database reconciliation job | 4 | Scheduled job | Daily/Weekly |
+| Manual audit | 3 | Human review | Quarterly |
+| Chaos/fault injection test | 2 | CI pipeline | Weekly |
+| Fuzz testing | 2 | CI pipeline | Nightly |
+| Static analysis (semgrep) | 2 | CI pipeline | Every PR merge |
+| Mutation testing (mutmut) | 1 | CI pipeline | Nightly |
 
 ---
 
-## 12. Enforcement Rules
+## 16. NFR Cross-Reference Index
 
-1. **CI Gate Policy:** PRs SHALL NOT be merged if any P0 or P1 NFR verification fails. P2 NFRs generate warnings but do not block merge.
-2. **Exception Process:** A temporary exception to any NFR requires a `knowledge_exceptions` record with: NFR ID, justification, expiry date (max 30 days), and approval from both the NFR owner and Lisa (Compliance Officer).
-3. **Regression Policy:** If a previously passing NFR begins failing, the responsible team has 24 hours (P0) or 72 hours (P1) to restore compliance or file an exception.
-4. **Audit Cadence:** Lisa SHALL review all active exceptions and compliance matrix mappings quarterly. Results are recorded in the audit_events table.
-5. **Dashboard Visibility:** All NFR metrics SHALL be visible on the Streamlit dashboard under a dedicated "Quality Gate" page showing: current status (pass/fail/exception), trend sparkline (30 days), and last verification timestamp.
+### By PRD Success Metric
+
+| Metric | NFRs |
+|---|---|
+| M1 — MCP latency | Q-001, Q-002, Q-004 |
+| M2 — Pipeline trigger-to-first-output | Q-007 |
+| M3 — Dashboard page load | Q-005, Q-006 |
+| M4 — Approval gate response | Q-010 (related) |
+| M5 — Cross-interface round-trip | Q-010, Q-049, Q-050, Q-051, Q-052, Q-053 |
+| M6 — Agent phase coverage | Q-017, Q-039 |
+| M7 — Cost tracking accuracy | Q-046, Q-062 |
+| M8 — Pipeline completion rate | Q-015 |
+| M9 — Pipeline cost per run | Q-060 |
+| M10 — Audit trail completeness | Q-042, Q-043, Q-054, Q-055 |
+
+### By Interface
+
+| Interface | NFRs |
+|---|---|
+| MCP | Q-001, Q-002, Q-003, Q-011, Q-012, Q-019, Q-020, Q-021, Q-035, Q-042, Q-049, Q-050, Q-051 |
+| REST | Q-004, Q-013, Q-022, Q-023, Q-036, Q-043, Q-049, Q-050, Q-051 |
+| Dashboard | Q-005, Q-006, Q-014, Q-024, Q-025, Q-029, Q-030, Q-031, Q-032, Q-033, Q-037, Q-044, Q-052 |
+| Shared Service | Q-008, Q-016, Q-034, Q-040 |
+| All / Cross-cutting | Q-007, Q-009, Q-010, Q-015, Q-017, Q-018, Q-026, Q-027, Q-028, Q-038, Q-039, Q-041, Q-045, Q-046, Q-047, Q-048, Q-054, Q-055, Q-056, Q-057, Q-058, Q-059, Q-060, Q-061, Q-062, Q-063, Q-064 |
 
 ---
 
-## 13. Revision History
+## 17. Glossary
 
-| Version | Date | Author | Changes |
-|---|---|---|---|
-| 1.0.0 | 2026-03-23 | Sarah (Engineering Lead) | Initial release with 36 NFRs across 8 categories |
+| Term | Definition |
+|---|---|
+| p95 | 95th percentile — 95% of measurements fall below this value |
+| RLS | Row-Level Security — PostgreSQL feature enforcing data isolation |
+| MCP | Model Context Protocol — protocol for AI tool invocation |
+| WCAG | Web Content Accessibility Guidelines |
+| CSP | Content Security Policy — HTTP header preventing XSS |
+| CSRF | Cross-Site Request Forgery |
+| PII | Personally Identifiable Information |
+| WAL | Write-Ahead Logging — PostgreSQL recovery mechanism |
+| SOC2 | Service Organization Control Type 2 — compliance framework |
+| EU AI Act | European Union Artificial Intelligence Act (Regulation 2024/1689) |
+| Fail-closed | Security pattern where system denies access when control mechanism fails |
+| Golden-path test | Test case covering the expected successful workflow |
+| Adversarial test | Test case covering malicious, malformed, or edge-case inputs |
 
 ---
 
-*This document is machine-verifiable. Every NFR includes a `Verify:` clause that maps to a concrete test, CI gate, or monitoring check. No NFR is aspirational --- all are enforced by automation.*
+*End of document. Total NFRs: 64. All Q-NNN IDs referenced by TESTING.md (Doc 13).*

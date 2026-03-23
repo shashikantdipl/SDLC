@@ -1,737 +1,834 @@
-# Architecture Document: Agentic SDLC Platform
+# ARCH -- Agentic SDLC Platform
+**Version:** v1.0 | Full-Stack-First | 2026-03-24
+**Document:** 2 of 14 | Status: Draft
 
-| Field            | Value                                      |
-| ---------------- | ------------------------------------------ |
-| Document ID      | ARCH-ASDLC-001                             |
-| Version          | 1.0.0                                      |
-| Status           | Draft                                      |
-| Owner            | Platform Engineering                       |
-| Last Updated     | 2026-03-23                                 |
-| Target Release   | v1.0.0                                     |
-| Tech Stack       | Python 3.12, Claude Agent SDK, PostgreSQL, asyncio, aiohttp, Streamlit |
+---
+
+## Architectural Philosophy: Full-Stack-First
+
+This architecture treats THREE interface layers as equal citizens. No interface is a wrapper around another. All three connect to a single **Shared Service Layer** that owns every piece of business logic.
+
+```
+                 +-----------------+
+                 |  AI Clients     |
+                 |  (Claude Code,  |
+                 |   Cursor, etc.) |
+                 +-------+---------+
+                         |
+                    MCP Protocol
+                    (stdio / streamable-http)
+                         |
+                 +-------v---------+
+                 |  MCP Servers    |         +------------------+
+                 |  (3 servers)    |         |  Browser Users   |
+                 +-------+---------+         |  (Anika, David,  |
+                         |                   |   Fatima, Jason)  |
+                         |                   +--------+---------+
+                         |                            |
+                         |                       HTTP (port 8501)
+                         |                            |
+                         |                   +--------v---------+
+                         |                   | Streamlit        |
+                         |                   | Dashboard        |
+                         |                   +--------+---------+
+                         |                            |
+                         |                     REST API calls
+                         |                     (localhost:8080)
+                         |                            |
+                 +-------v---------+         +--------v---------+
+                 |                 |         |                  |
+                 |   Shared        <---------+   REST API       |
+                 |   Service       |         |   (aiohttp)      |
+                 |   Layer         +--------->                  |
+                 |                 |         +------------------+
+                 +-------+---------+
+                         |
+              +----------+----------+
+              |                     |
+     +--------v-------+   +--------v--------+
+     |  PostgreSQL     |   |  Claude API     |
+     |  Database       |   |  (Anthropic)    |
+     +----------------+   +-----------------+
+```
+
+**Key Insight:** MCP tool handlers and REST route handlers are thin adapters. They validate input, call a shared service method, and format the response for their protocol. Zero business logic lives in the interface layer.
 
 ---
 
 ## 1. System Context (C4 Level 1)
 
-This diagram shows the Agentic SDLC Platform as a single box, its five persona-users, and the external systems it integrates with. Every arrow is labeled with protocol and purpose.
-
 ```
-                                  +------------------+
-                                  |   Anthropic      |
-                                  |   Claude API     |
-                                  | (Foundation LLM) |
-                                  +--------+---------+
-                                           |
-                                           | HTTPS / REST
-                                           | Model inference
-                                           |
-+------------------+              +--------v---------+              +------------------+
-|  Priya Mehta     | CLI / API   |                   | SQL / TCP    |   PostgreSQL     |
-|  Platform Engr   +------------>+                   +<------------>+   Database       |
-+------------------+             |                   |              | (agent_registry, |
-                                 |                   |              |  audit_events,   |
-+------------------+             |    AGENTIC SDLC   |              |  cost_metrics,   |
-|  David Chen      | Streamlit   |      PLATFORM     |              |  pipeline_runs,  |
-|  Delivery Lead   +------------>+                   |              |  session_context)|
-+------------------+             |  48 agents across |              +------------------+
-                                 |  7 SDLC phases    |
-+------------------+             |                   |              +------------------+
-|  Sarah Kim       | Streamlit / |  12-doc pipeline  | HTTPS        |   Slack          |
-|  Engineering Lead+---Slack---->+  Cost governance   +------------->+   (Webhooks)     |
-+------------------+             |  Audit & comply   |              | Notifications,   |
-                                 |                   |              | approval gates   |
-+------------------+             |                   |              +------------------+
-|  Marcus Johnson  | Streamlit / |                   |
-|  DevOps Engineer +---CLI------>+                   |              +------------------+
-+------------------+             |                   | HTTPS        |   PagerDuty      |
-                                 |                   +------------->+   (Alerts)       |
-+------------------+             |                   |              | Incident         |
-|  Lisa Patel      | Streamlit   |                   |              | escalation       |
-|  Compliance Offr +------------>+                   |              +------------------+
-+------------------+             +---+----------+----+
-                                     |          |
-                                     |          |              +------------------+
-                                     |          +------------->+   Git Repository  |
-                                     |            Git push     |   (GitHub)       |
-                                     |            Doc commits  | Source + outputs  |
-                                     |                         +------------------+
-                                     |
-                                     |                         +------------------+
-                                     +------------------------>+   File System    |
-                                       Write reports           |   reports/{pid}/ |
-                                                               +------------------+
++-------------------+                                        +-------------------+
+| <<Person>>        |                                        | <<Person>>        |
+| Priya (Platform)  |   MCP (stdio)                         | Marcus (Delivery) |
+| Jason (Tech Lead) +----------+                  +---------+ Jason (Tech Lead)  |
++-------------------+          |                  |         +-------------------+
+                               |                  |
+                        +------v------------------v------+
+                        |                                |
+                        |    AGENTIC SDLC PLATFORM       |
+                        |                                |
+                        |  48 agents | 7 SDLC phases     |
+                        |  12-doc pipeline | $25 ceiling  |
+                        |  Cost governance | Audit trail  |
+                        |  Approval gates | Knowledge DB  |
+                        |                                |
+                        +--+-----+-----+-----+-----+----+
+                           |     |     |     |     |
+              +------------+     |     |     |     +------------+
+              |                  |     |     |                  |
+   +----------v---+    +---------v-+  +v---------+   +---------v--+
+   | <<External>> |    |<<External>|  |<<External|   |<<External>>|
+   | Claude API   |    | PostgreSQL|  | Slack    |   | PagerDuty  |
+   | (Anthropic)  |    | Database  |  | Webhooks |   | Alerts     |
+   | HTTPS/REST   |    | TCP/SQL   |  | HTTPS    |   | HTTPS      |
+   | LLM calls    |    | All state |  | Notify + |   | Incident   |
+   +--------------+    +-----------+  | Approvals|   | Escalation |
+                                      +----------+   +------------+
+              |
+   +----------v---+
+   | <<Person>>   |     HTTP (browser)
+   | Anika (Eng)  +------------------------+
+   | David (Ops)  |                        |
+   | Fatima (Comp)|         +---+          |
+   | Jason (Lead) |         |   |     Dashboard
+   +--------------+         +---+     (Streamlit)
+
+   +-------------------+
+   | <<External>>      |     HTTP (webhooks, scripts)
+   | CI/CD Pipelines   +-----> REST API
+   | Webhooks / Scripts|
+   +-------------------+
 ```
 
-**Actor Descriptions:**
+**Actors and Interfaces:**
 
-| Actor / System     | Type     | Interaction                                                        |
-| ------------------ | -------- | ------------------------------------------------------------------ |
-| Priya Mehta        | User     | Develops agents, runs tests, deploys via CLI and API               |
-| David Chen         | User     | Triggers pipelines, monitors progress via Streamlit dashboard      |
-| Sarah Kim          | User     | Reviews outputs, responds to approval gates via Streamlit/Slack    |
-| Marcus Johnson     | User     | Monitors fleet health, investigates cost spikes via dashboard/CLI  |
-| Lisa Patel         | User     | Audits agent behavior, exports compliance reports via Streamlit    |
-| Anthropic Claude API | External | Foundation model inference for all 48 agents (Haiku/Sonnet/Opus)  |
-| PostgreSQL         | External | Persistent storage for registry, audit, cost, pipeline state       |
-| Slack              | External | Approval gate notifications, cost alerts, escalation messages      |
-| PagerDuty          | External | Incident alerting for ops-agents and fleet health thresholds       |
-| GitHub             | External | Source repository, document output commits, CI/CD pipelines        |
-| File System        | Internal | Local report output at `reports/{project_id}/`                     |
+| Actor | Primary Interface | Protocol | Purpose |
+|-------|------------------|----------|---------|
+| Priya (Platform Engineer) | MCP via Claude Code | stdio / streamable-http | Agent management, fleet diagnostics, cost queries |
+| Marcus (Delivery Lead) | MCP via Claude Code | stdio / streamable-http | Pipeline triggering, status checks, output retrieval |
+| Anika (Engineering Lead) | Dashboard (Streamlit) | HTTP / browser | Approval reviews, quality monitoring, maturity tracking |
+| David (DevOps Engineer) | Dashboard (Streamlit) | HTTP / browser | Fleet health, incident response, agent deployment |
+| Fatima (Compliance Officer) | Dashboard (Streamlit) | HTTP / browser | Audit log review, compliance reports, PII verification |
+| Jason (Tech Lead) | MCP + Dashboard | Both | Cross-interface: dev tasks via MCP, oversight via dashboard |
+| CI/CD / Scripts | REST API | HTTP | Automated triggers, health checks, webhook receivers |
+
+**External Systems:**
+
+| System | Protocol | Data Flow |
+|--------|----------|-----------|
+| Anthropic Claude API | HTTPS/REST | Outbound: prompts + context. Inbound: completions + token usage |
+| PostgreSQL | TCP/SQL | Bidirectional: all persistent state (agents, runs, audit, cost, sessions) |
+| Slack | HTTPS webhooks | Outbound: approval notifications, budget alerts, fleet warnings |
+| PagerDuty | HTTPS | Outbound: critical incident escalation (fleet down, budget runaway) |
 
 ---
 
 ## 2. Container Architecture (C4 Level 2)
 
-Each container is an independently deployable unit. All containers run as Python processes except PostgreSQL and the external message endpoints.
-
-| Container              | Technology                        | Responsibility                                                                                             | Deployment                                                  |
-| ---------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| **SDK Runtime**        | Python 3.12, claude_agent_sdk     | Core framework: base agent classes, manifest loading, schema validation, config resolution, hooks lifecycle | Library imported by all agent processes; no standalone deploy |
-| **Agent Fleet**        | Python 3.12, asyncio              | 48 agent processes across 7 phases (GOVERN, DESIGN, BUILD, TEST, DEPLOY, OPERATE, OVERSIGHT)               | Per-agent Python processes; canary slots for versioned deploy |
-| **Pipeline Orchestrator** | Python 3.12, asyncio           | DAG execution engine: sequential/parallel step scheduling, checkpoint/resume, retry with backoff, self-heal | Single long-running asyncio process                         |
-| **API Server**         | Python 3.12, aiohttp              | REST API for agent invocation, pipeline triggers, fleet management, health endpoints                        | Single aiohttp server process; port 8080                    |
-| **Dashboard**          | Python 3.12, Streamlit            | Web UI for pipeline monitoring, cost dashboards, audit trail browsing, compliance reporting, approval gates  | Streamlit server process; port 8501                         |
-| **PostgreSQL**         | PostgreSQL 15+                    | Persistent storage: agent registry, audit events (immutable), cost metrics, pipeline state, session context | Managed instance (RDS or local); single primary + read replica |
-| **Message Bus**        | In-process asyncio queues + Slack webhooks | Typed message envelope routing between agents; external notifications via Slack/PagerDuty webhooks  | In-process for agent-to-agent; HTTPS for external           |
+| # | Container | Technology | Responsibility | Deployment | Port |
+|---|-----------|-----------|----------------|------------|------|
+| 1 | **MCP Server: Agents** (`agentic-sdlc-agents`) | Python 3.12, Claude Agent SDK MCP | Agent execution, pipeline trigger/status/resume, document retrieval | Process (stdio) or HTTP service | stdio or 8090 |
+| 2 | **MCP Server: Governance** (`agentic-sdlc-governance`) | Python 3.12, Claude Agent SDK MCP | Cost queries, budget checks, audit log queries, approval gate actions | Process (stdio) or HTTP service | stdio or 8091 |
+| 3 | **MCP Server: Knowledge** (`agentic-sdlc-knowledge`) | Python 3.12, Claude Agent SDK MCP | Exception search/create/promote, knowledge base queries | Process (stdio) or HTTP service | stdio or 8092 |
+| 4 | **REST API** | Python 3.12, aiohttp | HTTP endpoints for dashboard and external integrations; thin adapter over shared services | Single async process | 8080 |
+| 5 | **Streamlit Dashboard** | Python 3.12, Streamlit | Visual monitoring, approval workflows, compliance reports, fleet controls | Streamlit server | 8501 |
+| 6 | **Agent Runtime** | Python 3.12, Claude Agent SDK, asyncio | Execution environment for 48 agents across 7 SDLC phases; manages agent lifecycle and orchestration levels L0-L4 | In-process (spawned by services) | N/A |
+| 7 | **PostgreSQL Database** | PostgreSQL 16 | All persistent state: agent_registry, pipeline_runs, audit_events, cost_events, approval_events, session_store, knowledge_entries | Managed instance | 5432 |
+| 8 | **Background Workers** | Python 3.12, asyncio | Pipeline runner (DAG execution), cost aggregation (materialized view refresh), health check poller, knowledge promotion evaluator | Async tasks in event loop | N/A |
 
 ```
 +------------------------------------------------------------------+
-|                        AGENTIC SDLC PLATFORM                     |
+|                    AGENTIC SDLC PLATFORM                         |
 |                                                                  |
-|  +------------------+    +-------------------+                   |
-|  |   Dashboard      |    |   API Server      |                   |
-|  |   (Streamlit)    |    |   (aiohttp)       |                   |
-|  |   port 8501      |    |   port 8080       |                   |
-|  +--------+---------+    +--------+----------+                   |
-|           |                       |                              |
-|           +----------+------------+                              |
-|                      |                                           |
-|            +---------v----------+                                |
-|            |   SDK Runtime      |                                |
-|            |   (claude_agent_   |                                |
-|            |    sdk library)    |                                |
-|            +---------+----------+                                |
-|                      |                                           |
-|     +----------------+----------------+                          |
-|     |                |                |                          |
-|  +--v-------+  +-----v------+  +-----v--------+                 |
-|  | Agent    |  | Pipeline   |  | Message Bus  |                 |
-|  | Fleet    |  | Orchestr.  |  | (asyncio Q + |                 |
-|  | (48 agts)|  | (DAG eng.) |  |  webhooks)   |                 |
-|  +--+-------+  +-----+------+  +-----+--------+                 |
-|     |                |                |                          |
-|     +----------------+----------------+                          |
-|                      |                                           |
-|            +---------v----------+                                |
-|            |   PostgreSQL       |                                |
-|            |   (8 tables)       |                                |
-|            +--------------------+                                |
-+------------------------------------------------------------------+
-         |                    |                    |
-    Claude API            Slack API           PagerDuty API
+|  +-----------+ +-----------+ +-----------+                       |
+|  | MCP:      | | MCP:      | | MCP:      |                       |
+|  | Agents    | | Governance| | Knowledge |                       |
+|  | (8090)    | | (8091)    | | (8092)    |                       |
+|  +-----+-----+ +-----+-----+ +-----+-----+                       |
+|        |              |              |                            |
+|        +--------------+--------------+                            |
+|                       |                                          |
+|                       v                                          |
+|  +--------------------------------------------+                  |
+|  |         SHARED SERVICE LAYER               |   +-----------+  |
+|  |                                            |   | REST API  |  |
+|  | PipelineService  | AgentService            |<--+ (aiohttp) |  |
+|  | CostService      | AuditService            |   | (8080)    |  |
+|  | ApprovalService  | KnowledgeService         |   +-----^-----+  |
+|  | HealthService    | SessionService           |         |        |
+|  +----------+------------------+--------------+         |        |
+|             |                  |                        |        |
+|  +----------v------+  +-------v--------+        +------+------+  |
+|  | Agent Runtime   |  | Background     |        | Streamlit   |  |
+|  | 48 agents       |  | Workers        |        | Dashboard   |  |
+|  | L0-L4 orch      |  | (pipeline,     |        | (8501)      |  |
+|  +-----------------+  |  cost, health) |        +-------------+  |
+|                       +----------------+                         |
+|                              |                                   |
++------------------------------+-----------------------------------+
+                               |
+                      +--------v--------+
+                      |   PostgreSQL    |
+                      |   (5432)       |
+                      +----------------+
 ```
 
 ---
 
-## 3. Component Diagram (C4 Level 3)
+## 3. Shared Service Layer
 
-### 3.1 SDK Runtime — Internal Components
+This is THE central architectural pattern. Every operation flows through a shared service. MCP tool handlers and REST route handlers are thin adapters that:
+1. Deserialize input (MCP tool arguments or HTTP request body)
+2. Call the shared service method
+3. Serialize the response (MCP tool result or HTTP JSON response)
 
-```
-+==============================================================================+
-|                              SDK RUNTIME                                      |
-|                                                                              |
-|  CORE (existing)                         STORES (to build)                   |
-|  +--------------------+                  +-----------------------------+     |
-|  | BaseAgent          |                  | SessionStore        [P1]   |     |
-|  | BaseStatefulAgent  |                  | PostgresCostStore   [P1]   |     |
-|  | BaseHooks          |                  | ApprovalStore       [P2]   |     |
-|  | ManifestLoader     |                  | PipelineCheckpoint  [P2]   |     |
-|  | SchemaValidator    |                  +-----------------------------+     |
-|  +--------------------+                                                      |
-|                                          ORCHESTRATION (to build)            |
-|  CONFIG RESOLUTION                       +-----------------------------+     |
-|  +--------------------+                  | PipelineRunner      [P3]   |     |
-|  | ArchetypeResolver  |                  | TeamOrchestrator    [P3]   |     |
-|  |  (7 YAML files)    |                  +-----------------------------+     |
-|  | MixinMerger        |                                                      |
-|  | ManifestMerger     |                  ENFORCEMENT (to build)              |
-|  | ClientProfileApply |                  +-----------------------------+     |
-|  +--------------------+                  | TokenBucketRateLimiter [P2]|     |
-|                                          | ExceptionPromotionEng [P4] |     |
-|  COMMUNICATION                           | SelfHealPolicy       [P4] |     |
-|  +--------------------+                  +-----------------------------+     |
-|  | MessageEnvelope    |                                                      |
-|  |  (typed, 7 proto-  |                 EVALUATION (to build)                |
-|  |   col patterns)    |                  +-----------------------------+     |
-|  | TrustChainValidator|                  | QualityScorer        [P4]  |     |
-|  +--------------------+                  +-----------------------------+     |
-|                                                                              |
-|  OBSERVABILITY (to build)                SERVER (to build)                   |
-|  +--------------------+                  +-----------------------------+     |
-|  | OtelInstrumentation|                  | HealthServer         [P4]  |     |
-|  |   [P5]             |                  | WebhookNotifier      [P4]  |     |
-|  +--------------------+                  +-----------------------------+     |
-+==============================================================================+
-```
+No business logic, validation beyond input parsing, or database access exists in the interface layer.
 
-### 3.2 Agent Fleet — Internal Components
+### 3.1 PipelineService
 
-```
-+==============================================================================+
-|                              AGENT FLEET                                      |
-|                                                                              |
-|  GOVERN PHASE (agents/govern/)                                               |
-|  +-------+ +-------+ +-------+ +-------+ +-------+                          |
-|  | G1    | | G2    | | G3    | | G4    | | G5    |                          |
-|  | Cost  | | Audit | | Comp- | | Team  | | Fleet |                          |
-|  | Guard | | Logger| | liance| | Orch. | | Mgr   |                          |
-|  +-------+ +-------+ +-------+ +-------+ +-------+                          |
-|                                                                              |
-|  DESIGN PHASE (agents/claude-cc/)                                            |
-|  +-------+ +-------+ +-------+ +-------+                                    |
-|  | D1    | | D2    | | D3    | | D4    |                                    |
-|  | Road- | | PRD   | | CLAUDE| | Feat  |                                    |
-|  | map   | | Gen   | | .md   | | Cat   |                                    |
-|  +-------+ +-------+ +-------+ +-------+                                    |
-|  +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ +-------+      |
-|  | D5    | | D6    | | D7    | | D8    | | D9    | | D10   | | D11   |      |
-|  | Arch  | | Data  | | API   | | Enf.  | | Qual  | | Test  | | Design|      |
-|  | Gen   | | Model | | Contr.| | Scaff | | Spec  | | Strat | | Spec  |      |
-|  +-------+ +-------+ +-------+ +-------+ +-------+ +-------+ +-------+      |
-|                                                                              |
-|  BUILD PHASE              TEST PHASE              DEPLOY PHASE               |
-|  +------+ +------+       +------+ +------+       +------+                   |
-|  | B1-B4| | B5-B8|       | T1-T3| | T4   |       | P1-P3|                   |
-|  | Code | | CI   |       | Unit | | Integ|       | Deploy|                   |
-|  | Rev. | | Gates|       | Test | | Test |       | Agents|                   |
-|  +------+ +------+       +------+ +------+       +------+                   |
-|                                                                              |
-|  OPERATE PHASE            OVERSIGHT PHASE                                    |
-|  +------+ +------+       +--------+ +--------+                              |
-|  | O1-O3| | O4   |       | OV-U1  | | OV-*   |                              |
-|  | Ops  | | Scale|       | Unified| | Phase  |                              |
-|  | Resp.| | Agent|       | Orch.  | | Overst.|                              |
-|  +------+ +------+       +--------+ +--------+                              |
-|                                                                              |
-|  AGENT INTERNAL STRUCTURE (per agent):                                       |
-|  +-----------------------------------------------------------+              |
-|  | {AGENT-ID}/                                                |              |
-|  |   manifest.yaml  -- 9 subsystems (declarative config)     |              |
-|  |   prompt.md       -- system prompt template                |              |
-|  |   agent.py        -- agent logic (extends BaseAgent)       |              |
-|  |   hooks.py        -- lifecycle hooks (extends BaseHooks)   |              |
-|  |   tools.py        -- tool definitions for Claude SDK       |              |
-|  |   rubric.yaml     -- quality evaluation rubric             |              |
-|  |   __init__.py     -- module export                         |              |
-|  |   requirements.txt-- agent-specific deps                   |              |
-|  |   tests/          -- golden + adversarial tests            |              |
-|  +-----------------------------------------------------------+              |
-+==============================================================================+
-```
+**Module:** `sdk/services/pipeline_service.py`
 
-### 3.3 Pipeline Orchestrator — Internal Components
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `trigger(project_id, pipeline_id, input_data, gates)` | Validate input, create pipeline_run record, enqueue for execution | `trigger_pipeline` | `POST /api/v1/pipelines` |
+| `get_status(run_id)` | Return current step, progress, cost, elapsed time | `check_pipeline_status` | `GET /api/v1/pipelines/{run_id}` |
+| `list_runs(project_id, status, limit, offset)` | Paginated list of pipeline runs with filters | `list_pipeline_runs` | `GET /api/v1/pipelines` |
+| `get_outputs(run_id)` | List generated documents with metadata (confidence, schema status) | `get_pipeline_outputs` | `GET /api/v1/pipelines/{run_id}/outputs` |
+| `get_document(run_id, doc_id)` | Fetch a specific generated document's content | `get_document` | `GET /api/v1/pipelines/{run_id}/outputs/{doc_id}` |
+| `resume(run_id)` | Resume from last checkpoint after failure | `resume_pipeline` | `POST /api/v1/pipelines/{run_id}/resume` |
+| `cancel(run_id)` | Cancel a running pipeline, preserve completed steps | `cancel_pipeline` | `POST /api/v1/pipelines/{run_id}/cancel` |
+| `get_logs(run_id, step)` | Detailed execution logs for debugging | `get_pipeline_logs` | `GET /api/v1/pipelines/{run_id}/logs` |
 
-```
-+==============================================================================+
-|                         PIPELINE ORCHESTRATOR                                 |
-|                                                                              |
-|  +-------------------+    +--------------------+    +-------------------+     |
-|  | DAGParser         |    | StepScheduler      |    | CheckpointMgr    |     |
-|  | Reads team YAML   |    | Sequential +       |    | Save/restore     |     |
-|  | Builds exec graph |    | parallel dispatch  |    | pipeline state   |     |
-|  +--------+----------+    +--------+-----------+    +--------+----------+    |
-|           |                        |                         |               |
-|           v                        v                         v               |
-|  +-------------------+    +--------------------+    +-------------------+     |
-|  | RetryEngine       |    | ApprovalGateMgr    |    | CostEnforcer     |     |
-|  | Exp. backoff,     |    | T0-T3 tier check,  |    | Pre-invoke check |     |
-|  | max 3 retries     |    | Slack notify, wait |    | 4-level ceiling  |     |
-|  +-------------------+    +--------------------+    +-------------------+     |
-|           |                        |                         |               |
-|           v                        v                         v               |
-|  +-------------------+    +--------------------+    +-------------------+     |
-|  | SelfHealEngine    |    | BranchRouter       |    | ResultCollector   |     |
-|  | Detect failure    |    | Conditional fan-out|    | Aggregate outputs |     |
-|  | mode, auto-fix    |    | Parallel branches  |    | Write to reports/ |     |
-|  +-------------------+    +--------------------+    +-------------------+     |
-+==============================================================================+
-```
+### 3.2 AgentService
 
-### 3.4 Orchestration Levels (L0 - L5)
+**Module:** `sdk/services/agent_service.py`
 
-```
-+----------------------------------------------------------------------+
-|  L5: HUMAN ESCALATION                                                |
-|  Approval gates, Slack notifications, manual override                |
-+----------------------------------------------------------------------+
-        |
-+----------------------------------------------------------------------+
-|  L4: FLEET (scaling + health)                                        |
-|  G5 Fleet Manager, canary slots, health checks, circuit breaker      |
-+----------------------------------------------------------------------+
-        |
-+----------------------------------------------------------------------+
-|  L3: TEAM (parallel / conditional)                                   |
-|  TeamOrchestrator, 9+5 team YAMLs, fan-out / fan-in                  |
-+----------------------------------------------------------------------+
-        |
-+----------------------------------------------------------------------+
-|  L2: PIPELINE (sequential chain)                                     |
-|  PipelineRunner, DAG execution, checkpoint/resume                    |
-+----------------------------------------------------------------------+
-        |
-+----------------------------------------------------------------------+
-|  L1: SUBAGENT SPAWN                                                  |
-|  Parent agent delegates to child agent via SDK                       |
-+----------------------------------------------------------------------+
-        |
-+----------------------------------------------------------------------+
-|  L0: AGENT LOOP                                                      |
-|  Single agent: SDK query() -> perception -> planning -> tool ->      |
-|  output -> safety check -> emit audit event                          |
-+----------------------------------------------------------------------+
-```
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `list_agents(phase, status, maturity)` | Enumerate agents with filters | `list_agents` | `GET /api/v1/agents` |
+| `get_agent(agent_id)` | Full agent detail: config, health, cost, maturity | `query_agent` | `GET /api/v1/agents/{agent_id}` |
+| `invoke(agent_id, input_data, project_id)` | Direct single-agent invocation outside pipeline | `invoke_agent` | `POST /api/v1/agents/{agent_id}/invoke` |
+| `health_check(agent_id)` | Current health status and diagnostics | `check_agent_health` | `GET /api/v1/agents/{agent_id}/health` |
+| `deploy_version(agent_id, version, canary_pct)` | Deploy new version to canary slot | -- | `POST /api/v1/agents/{agent_id}/deploy` |
+| `rollback(agent_id)` | Rollback canary to previous stable version | -- | `POST /api/v1/agents/{agent_id}/rollback` |
+| `promote(agent_id, maturity_level)` | Promote agent maturity tier | -- | `POST /api/v1/agents/{agent_id}/promote` |
 
-### 3.5 Storage Layer — PostgreSQL Tables
+### 3.3 CostService
 
-```
-+==============================================================================+
-|                              POSTGRESQL                                       |
-|                                                                              |
-|  EXISTING TABLES                          TO BUILD                           |
-|  +---------------------+                 +-----------------------------+     |
-|  | agent_registry      |                 | session_context     [P1]   |     |
-|  |   agent_id (PK)     |                 |   session_id (PK)          |     |
-|  |   version, status   |                 |   project_id, data (JSONB) |     |
-|  |   archetype, phase  |                 |   created_at, expires_at   |     |
-|  +---------------------+                 +-----------------------------+     |
-|  | cost_metrics        |                 | approval_requests   [P2]   |     |
-|  |   agent_id, project |                 |   request_id (PK)          |     |
-|  |   tokens_in/out     |                 |   pipeline_run_id          |     |
-|  |   cost_usd, ts      |                 |   approver, status         |     |
-|  +---------------------+                 |   requested_at, decided_at |     |
-|  | audit_events        |                 +-----------------------------+     |
-|  |   (IMMUTABLE)       |                 | pipeline_checkpoints [P2]  |     |
-|  |   13 fields, JSONL  |                 |   checkpoint_id (PK)       |     |
-|  |   INSERT-only       |                 |   pipeline_run_id          |     |
-|  +---------------------+                 |   step_index, state (JSONB)|     |
-|  | pipeline_runs       |                 +-----------------------------+     |
-|  |   run_id (PK)       |                 | knowledge_exceptions [P3]  |     |
-|  |   project_id, status|                 |   exception_id (PK)        |     |
-|  |   started/completed |                 |   tier (client/stack/univ) |     |
-|  +---------------------+                 |   pattern, resolution      |     |
-|  | pipeline_steps      |                 |   promoted_from, promoted_to|    |
-|  |   step_id, run_id   |                 +-----------------------------+     |
-|  |   agent_id, status  |                                                     |
-|  |   input/output hash |                                                     |
-|  +---------------------+                                                     |
-|                                                                              |
-|  ROW-LEVEL SECURITY (RLS)                                                    |
-|  All tables enforce project_id-based isolation via RLS policies.             |
-|  Dashboard queries execute with role = 'app_reader' scoped to project_id.    |
-+==============================================================================+
-```
+**Module:** `sdk/services/cost_service.py`
 
-### 3.6 Config Resolution Pipeline
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `get_report(scope, scope_id, period)` | Cost breakdown at fleet/project/agent level | `get_cost_summary` | `GET /api/v1/cost/report` |
+| `get_forecast(scope, scope_id, period)` | Projected spend based on current trajectory | `get_cost_forecast` | `GET /api/v1/cost/forecast` |
+| `check_budget(scope, scope_id)` | Current budget utilization and remaining | `check_budget` | `GET /api/v1/cost/budget` |
+| `record_spend(agent_id, project_id, tokens, cost_usd)` | Record a cost event (called internally by agent runtime) | -- | -- |
+| `get_budget_alerts(scope, scope_id, period)` | List budget threshold breach events | -- | `GET /api/v1/cost/alerts` |
 
-```
-  +------------------+     +------------------+     +------------------+
-  | 1. Archetype     |     | 2. Mixins        |     | 3. Agent         |
-  |    YAML          +---->+    (optional)     +---->+    manifest.yaml |
-  | (7 base configs) |     | (shared traits)  |     | (per-agent cfg)  |
-  +------------------+     +------------------+     +--------+---------+
-                                                             |
-                                                             v
-                                                    +--------+---------+
-                                                    | 4. Client        |
-                                                    |    Profile YAML  |
-                                                    | (per-engagement) |
-                                                    +--------+---------+
-                                                             |
-                                                             v
-                                                    +--------+---------+
-                                                    | SchemaValidator  |
-                                                    | JSON Schema      |
-                                                    | 2020-12 check    |
-                                                    +--------+---------+
-                                                             |
-                                                             v
-                                                    +--------+---------+
-                                                    | ClaudeAgentOpts  |
-                                                    | Final resolved   |
-                                                    | runtime config   |
-                                                    +------------------+
-```
+### 3.4 AuditService
+
+**Module:** `sdk/services/audit_service.py`
+
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `query_events(filters, limit, offset)` | Filtered audit trail query (13-field records) | `get_audit_log` | `GET /api/v1/audit/events` |
+| `get_event(event_id)` | Single audit event with full detail | -- | `GET /api/v1/audit/events/{event_id}` |
+| `get_summary(project_id, period)` | Aggregated audit statistics | `get_audit_summary` | `GET /api/v1/audit/summary` |
+| `verify_integrity(start_date, end_date)` | Validate hash chain integrity over time range | -- | `POST /api/v1/audit/verify` |
+| `generate_report(template, period, project_id)` | Generate compliance PDF from template | -- | `POST /api/v1/audit/reports` |
+| `record_event(audit_record)` | Write 13-field JSONL audit record (called internally) | -- | -- |
+
+### 3.5 ApprovalService
+
+**Module:** `sdk/services/approval_service.py`
+
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `create_request(run_id, step, agent_id, confidence, assignee)` | Create pending approval gate (called by pipeline runner) | -- | -- |
+| `approve(gate_id, approver, note)` | Approve a pending gate with optional structured comment | `approve_gate` | `POST /api/v1/approvals/{gate_id}/approve` |
+| `reject(gate_id, approver, comment)` | Reject with structured feedback (category, section, severity) | `reject_gate` | `POST /api/v1/approvals/{gate_id}/reject` |
+| `list_pending(assignee, project_id)` | List all pending approval gates | `list_pending_approvals` | `GET /api/v1/approvals?status=pending` |
+| `get_gate(gate_id)` | Full gate detail with document preview metadata | -- | `GET /api/v1/approvals/{gate_id}` |
+| `escalate(gate_id)` | Escalate to backup reviewer after timeout | -- | `POST /api/v1/approvals/{gate_id}/escalate` |
+
+### 3.6 KnowledgeService
+
+**Module:** `sdk/services/knowledge_service.py`
+
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `search_exceptions(query, tier, project_id)` | Search knowledge base with tier filtering | `search_exceptions` | `GET /api/v1/knowledge/search` |
+| `create_exception(exception_data)` | Record a new exception/learning | `create_exception` | `POST /api/v1/knowledge/exceptions` |
+| `promote(exception_id, target_tier)` | Promote exception from client to stack or universal | `promote_exception` | `POST /api/v1/knowledge/exceptions/{id}/promote` |
+| `list_exceptions(tier, status, limit)` | List exceptions with filters | `list_exceptions` | `GET /api/v1/knowledge/exceptions` |
+| `get_resolution(exception_id)` | Get resolution details and applicability assessment | -- | `GET /api/v1/knowledge/exceptions/{id}` |
+
+### 3.7 HealthService
+
+**Module:** `sdk/services/health_service.py`
+
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `get_fleet_health()` | Fleet-wide health summary (agent counts by status, cost, pipelines) | `check_fleet_health` | `GET /api/v1/health/fleet` |
+| `get_agent_health(agent_id)` | Individual agent health with diagnostics | `check_agent_health` | `GET /api/v1/health/agents/{agent_id}` |
+| `get_system_health()` | System-level health (DB, Claude API, workers) | -- | `GET /api/v1/health` |
+
+### 3.8 SessionService
+
+**Module:** `sdk/services/session_service.py`
+
+| Method | Description | MCP Tool | REST Route |
+|--------|-------------|----------|------------|
+| `create_session(project_id, pipeline_id)` | Create namespaced session context | -- | -- |
+| `get_context(session_id)` | Retrieve accumulated context for next agent | -- | -- |
+| `append_context(session_id, agent_id, output)` | Add agent output to session (context accumulation) | -- | -- |
+| `get_session(session_id)` | Session metadata and context summary | -- | `GET /api/v1/sessions/{session_id}` |
+
+### Service Layer Guarantees
+
+1. **Single Source of Truth:** All data reads go through services to PostgreSQL. No interface-specific caches that could drift.
+2. **Transaction Boundaries:** Each service method defines its own transaction scope. The interface layer never manages transactions.
+3. **Error Uniformity:** Services raise typed exceptions (`BudgetExceededError`, `PipelineNotFoundError`, `GateAlreadyResolvedError`). Each interface layer maps these to its protocol's error format (MCP error codes, HTTP status codes, Streamlit error toasts).
+4. **Async-First:** All service methods are `async def`. MCP handlers and aiohttp routes `await` them directly. Streamlit uses `asyncio.run()` bridge.
 
 ---
 
-## 4. Tech Stack Decisions
+## 4. MCP Server Architecture
 
-| #  | Decision              | Choice                              | Alternatives Considered                  | Rationale                                                                                                                                                         | Trade-offs Accepted                                                                                          |
-| -- | --------------------- | ----------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 1  | Language              | Python 3.12                         | Go, TypeScript, Rust                     | Claude Agent SDK is Python-native. Python dominates the AI/ML ecosystem with mature async support (asyncio). 3.12 brings performance improvements and better typing. | Slower single-thread execution than Go/Rust. GIL limits true parallelism (mitigated by asyncio for I/O-bound agent work). |
-| 2  | LLM SDK               | Claude Agent SDK (claude_agent_sdk) | LangChain, LlamaIndex, raw Anthropic API | First-party SDK with native tool use, streaming, and agent lifecycle hooks. No abstraction overhead or version churn from third-party frameworks.                  | Vendor lock-in to Anthropic. No multi-provider fallback. LangChain offers broader model support but adds complexity and abstraction leaks. |
-| 3  | Database              | PostgreSQL 15+                      | MongoDB, DynamoDB, SQLite                | ACID transactions for cost enforcement and audit immutability. Row-Level Security for multi-tenant isolation. JSONB for flexible agent state. Battle-tested at scale. | Requires schema migrations. No native horizontal sharding (mitigated: single-instance sufficient at v1 scale). More operational overhead than DynamoDB. |
-| 4  | Async Framework       | asyncio (stdlib)                    | threading, Celery, Ray                   | All agent work is I/O-bound (API calls, DB queries). asyncio is stdlib with zero dependency overhead. Celery adds broker complexity (Redis/RabbitMQ) not yet needed. | No built-in distributed task queue. No worker isolation. At scale, Celery or Ray would provide better fault isolation and horizontal scaling. |
-| 5  | Dashboard             | Streamlit                           | React SPA, Grafana, Retool               | Rapid prototyping in Python — the team is Python-native. No frontend build pipeline. Sufficient for 5 internal personas at v1 scale.                              | Not suitable for high-concurrency production UI. No fine-grained component control. Will need replacement at 10x scale. No mobile responsiveness. |
-| 6  | Config Format         | YAML manifests (declarative)        | JSON, TOML, Pydantic-only models         | YAML is human-readable for the 9-subsystem agent manifest. Supports comments for documentation inline. Anchors and merge keys enable archetype inheritance.       | YAML parsing pitfalls (Norway problem, implicit typing). Mitigated by strict JSON Schema validation layer. Slightly slower to parse than TOML. |
-| 7  | Schema Validation     | JSON Schema 2020-12                 | Pydantic v2, protobuf, Zod               | Language-agnostic schema definition. Validates YAML manifests before Python touches them. Reusable by CI, editors, and future non-Python tooling.                 | More verbose than Pydantic. No automatic Python class generation (mitigated: ManifestLoader handles hydration). Less type-safe at runtime than Pydantic. |
-| 8  | CI/CD                 | GitHub Actions                      | GitLab CI, Jenkins, CircleCI             | Repository is on GitHub. Native integration with PR checks, matrix builds, and secrets. No self-hosted infrastructure required.                                    | Vendor lock-in to GitHub. YAML-based workflow config can become complex. Less flexible than self-hosted Jenkins for custom build environments. |
-| 9  | Infrastructure as Code| AWS CDK (Python)                    | Terraform, Pulumi, CloudFormation        | CDK uses Python — same language as the application. Generates CloudFormation under the hood. Type-safe infrastructure definitions.                                 | AWS-only. Less community adoption than Terraform. CDK constructs can have surprising defaults. Terraform is cloud-agnostic but uses HCL. |
-| 10 | Authentication        | JWT with tenant_id claim            | Session cookies, API keys only, OAuth2/OIDC | Stateless auth for API Server. tenant_id claim enables RLS enforcement at the application layer. Standard JWT libraries available in Python.                      | Requires token refresh logic. No built-in revocation without a denylist. Session cookies would be simpler for dashboard-only auth but don't work for API clients. |
-| 11 | Message Passing       | Typed envelope (in-process asyncio) | RabbitMQ, Redis Streams, Kafka           | At v1 scale (single process, <50 concurrent agents), an in-process async queue with typed envelopes is sufficient. Zero infrastructure overhead.                  | No persistence of in-flight messages. No cross-process routing. Must migrate to distributed queue at scale. Single point of failure. |
-| 12 | Report Output         | File system (reports/{project_id}/) | S3/object storage, database BLOBs        | Simplest option for v1. Agents write Markdown files to disk. Easy to inspect, diff, and commit to Git.                                                            | Not durable across host failures. Not accessible from multiple nodes. Will need object storage migration for multi-instance deployment. |
+### 4.1 Server Layout
 
----
+Three MCP servers, grouped by domain to keep tool namespaces manageable and allow independent scaling:
 
-## 5. Cross-Cutting Concerns
+| Server | Tools | Domain | Personas |
+|--------|-------|--------|----------|
+| `agentic-sdlc-agents` | `trigger_pipeline`, `check_pipeline_status`, `get_pipeline_outputs`, `get_document`, `resume_pipeline`, `cancel_pipeline`, `get_pipeline_logs`, `list_agents`, `query_agent`, `invoke_agent`, `check_agent_health` | Agent execution, pipelines, documents | Priya, Marcus, Jason |
+| `agentic-sdlc-governance` | `get_cost_summary`, `get_cost_forecast`, `check_budget`, `get_audit_log`, `get_audit_summary`, `approve_gate`, `reject_gate`, `list_pending_approvals`, `check_fleet_health` | Cost, audit, approvals, fleet health | Priya, Marcus, Jason, Anika (via MCP) |
+| `agentic-sdlc-knowledge` | `search_exceptions`, `create_exception`, `promote_exception`, `list_exceptions` | Knowledge base, exception flywheel | Priya, Jason |
 
-### 5.1 Authentication and Authorization
+### 4.2 Transport Configuration
 
-**API Server Authentication:**
-- External API clients authenticate via JWT bearer tokens issued by the platform's auth endpoint.
-- Each JWT contains a `tenant_id` claim, a `project_id` claim, and a `role` claim (one of: `admin`, `operator`, `viewer`).
-- Token lifetime: 1 hour. Refresh tokens: 24 hours. Signing algorithm: RS256 with platform-managed key pair.
-- All API endpoints validate the JWT signature, expiry, and claims before processing.
+| Environment | Transport | Configuration |
+|-------------|-----------|---------------|
+| Local development | `stdio` | Claude Code spawns MCP server as child process. Configuration in `.claude/mcp.json` |
+| Production / Team | `streamable-http` | MCP servers run as HTTP services on ports 8090-8092. TLS terminated at reverse proxy |
+| CI/CD | `stdio` | Test harness spawns MCP server, sends tool calls, asserts responses |
 
-**Agent-to-Agent Authentication:**
-- Agents authenticate to the Claude API using a shared `ANTHROPIC_API_KEY` environment variable.
-- Agent-to-agent communication uses the `trust_chain` field in the message envelope. Every message carries the full chain of agents that have handled it, from the originating external trigger through every intermediary.
-- The `TrustChainValidator` component verifies that the `from_agent` field matches a registered agent in `agent_registry` and that the trust chain is acyclic.
+### 4.3 Authentication
 
-**Dashboard Authentication:**
-- Streamlit dashboard uses session-based authentication with JWT tokens stored in browser session state.
-- Role-based access: Priya/Marcus (admin) see all projects; David/Sarah (operator) see assigned projects; Lisa (viewer) sees audit data only.
+- **API key via environment variable:** `AGENTIC_SDLC_API_KEY`
+- MCP servers read the key from environment on startup
+- For stdio transport: key is set in the shell environment before launching
+- For streamable-http transport: key is sent in the `Authorization` header
+- All MCP tool calls are logged to `audit_events` with the authenticated identity
 
-**Authorization Model:**
+### 4.4 MCP Tool Contract Pattern
 
-| Role     | Pipeline Trigger | Agent Deploy | Cost Config | Audit Read | Approval Gate |
-| -------- | ---------------- | ------------ | ----------- | ---------- | ------------- |
-| admin    | Yes              | Yes          | Yes         | Yes        | Yes           |
-| operator | Yes              | No           | No          | Own project| Yes           |
-| viewer   | No               | No           | No          | Yes        | No            |
+Every MCP tool handler follows this exact pattern:
 
-### 5.2 Multi-Tenancy
+```python
+# In mcp_agents_server.py
+@server.tool("trigger_pipeline")
+async def handle_trigger_pipeline(
+    project_id: str,
+    pipeline_id: str,
+    input_data: dict,
+    gates: dict | None = None
+) -> dict:
+    """Trigger a document generation pipeline."""
+    # 1. Input is already validated by MCP SDK schema
+    # 2. Call shared service
+    result = await pipeline_service.trigger(
+        project_id=project_id,
+        pipeline_id=pipeline_id,
+        input_data=input_data,
+        gates=gates
+    )
+    # 3. Return result (MCP SDK serializes to JSON)
+    return result
+```
 
-**Isolation Strategy: Namespace-based with Row-Level Security**
+No business logic. No database calls. No error handling beyond what the service raises.
 
-- Every data record includes `project_id` and `client_id` columns.
-- PostgreSQL Row-Level Security (RLS) policies enforce that queries from the application layer can only access rows matching the session's `project_id`.
-- The API Server sets `SET LOCAL app.current_project_id = '<project_id>'` on every database connection before executing queries. RLS policies reference `current_setting('app.current_project_id')`.
-- Per-client configuration profiles (stored as YAML in `knowledge/client/{client_id}/profile.yaml`) control autonomy tier overrides, approval gate assignments, notification preferences, and budget allocations.
-- Pipeline state, session context, and cost metrics are all partitioned by `project_id`.
-- File-system outputs are isolated under `reports/{project_id}/`.
-
-**Isolation Guarantees:**
-- A cost spike in Project A cannot consume Project B's budget (enforced by `CostEnforcer` checking project-level ceilings).
-- A pipeline failure in Project A cannot block Project B's pipeline (separate pipeline_run records, independent DAG execution).
-- Audit queries for Project A never return Project B's records (RLS enforcement).
-
-### 5.3 Observability
-
-**Audit Trail (13-field JSONL):**
-
-Every agent invocation produces an immutable audit record in the `audit_events` table:
-
-| Field             | Type      | Description                                    |
-| ----------------- | --------- | ---------------------------------------------- |
-| timestamp         | ISO 8601  | When the invocation started                    |
-| agent_id          | string    | Agent identifier (e.g., `D1-roadmap-generator`)|
-| agent_version     | string    | Semantic version of the agent                  |
-| project_id        | string    | Project namespace                              |
-| invocation_id     | UUID      | Unique identifier for this invocation          |
-| input_hash        | SHA-256   | Hash of the input payload (not the raw input)  |
-| output_hash       | SHA-256   | Hash of the output payload                     |
-| cost_usd          | decimal   | Actual cost of Claude API calls                |
-| latency_ms        | integer   | Wall-clock duration of the invocation          |
-| quality_score     | float     | Rubric-based quality score (0.0 - 10.0)        |
-| autonomy_tier     | enum      | T0, T1, T2, or T3                              |
-| approval_status   | enum      | not_required, pending, approved, rejected       |
-| error_details     | JSONB     | Null on success; structured error on failure    |
-
-The `audit_events` table is INSERT-only. No UPDATE or DELETE operations are permitted (enforced by database trigger).
-
-**Structured Logging:**
-- All components emit structured JSON logs to stdout.
-- Log fields: `timestamp`, `level`, `component`, `agent_id`, `project_id`, `correlation_id`, `message`, `extra`.
-- Log level configurable via `LOG_LEVEL` environment variable (default: `INFO`).
-- Correlation ID propagated through the entire request chain via the message envelope's `correlation_id` field.
-
-**Cost Metrics:**
-- Real-time cost tracking in `cost_metrics` table, aggregated by agent, project, and day.
-- Dashboard widgets: daily burn rate, per-project spend, per-agent spend, budget utilization percentage.
-- Alerting: Slack notification at 80% of any budget ceiling (fleet, project, agent).
-
-**OpenTelemetry (Planned - P5):**
-- `OtelInstrumentation` module will add distributed tracing spans to every agent invocation.
-- Traces will propagate through pipeline steps, linking parent pipeline span to child agent spans.
-- Export to Jaeger or OTLP-compatible backend.
-
-### 5.4 Error Handling
-
-**Envelope-Based Error Propagation:**
-
-Errors are communicated via the message envelope's response format:
+### 4.5 Claude Code Configuration
 
 ```json
+// .claude/mcp.json
 {
-    "envelope_id": "uuid",
-    "correlation_id": "uuid",
-    "from_agent": "D5-arch-generator",
-    "to_agent": "G4-team-orchestrator",
-    "timestamp": "2026-03-23T14:30:00Z",
-    "payload": {
-        "mode": "error",
-        "data": {
-            "error_code": "BUDGET_EXCEEDED",
-            "error_message": "Agent D5 invocation would exceed project ceiling ($20)",
-            "retryable": false,
-            "context": {
-                "current_spend": 19.85,
-                "projected_cost": 0.45,
-                "ceiling": 20.00
-            }
-        }
+  "mcpServers": {
+    "agentic-sdlc-agents": {
+      "command": "python",
+      "args": ["-m", "mcp_servers.agents_server"],
+      "env": {
+        "AGENTIC_SDLC_API_KEY": "${AGENTIC_SDLC_API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    },
+    "agentic-sdlc-governance": {
+      "command": "python",
+      "args": ["-m", "mcp_servers.governance_server"],
+      "env": {
+        "AGENTIC_SDLC_API_KEY": "${AGENTIC_SDLC_API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    },
+    "agentic-sdlc-knowledge": {
+      "command": "python",
+      "args": ["-m", "mcp_servers.knowledge_server"],
+      "env": {
+        "AGENTIC_SDLC_API_KEY": "${AGENTIC_SDLC_API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
     }
+  }
 }
 ```
 
-**Retry Strategy:**
-- Transient errors (API timeout, rate limit, 5xx from Claude API): automatic retry with exponential backoff.
-- Backoff formula: `min(base_delay * 2^attempt, max_delay)` where `base_delay=1s`, `max_delay=30s`, `max_attempts=3`.
-- Non-transient errors (budget exceeded, schema validation failure, PII detected): no retry; escalate to orchestrator.
-
-**Circuit Breaker:**
-- Per-agent circuit breaker with three states: CLOSED (normal), OPEN (failing), HALF-OPEN (testing recovery).
-- Threshold: 5 consecutive failures within 60 seconds triggers OPEN state.
-- OPEN state duration: 30 seconds. After 30s, transitions to HALF-OPEN and allows one test invocation.
-- If HALF-OPEN invocation succeeds: return to CLOSED. If it fails: return to OPEN for another 30s.
-
-**Fail-Safe Budget Enforcement:**
-- If the PostgreSQL `cost_metrics` table is unreachable, all agent invocations are BLOCKED (fail-closed, not fail-open).
-- Rationale: unmetered execution is worse than halted execution. Budget integrity is non-negotiable.
-
-**Pipeline Failure Handling:**
-1. Step fails after all retries exhausted.
-2. Pipeline Orchestrator saves checkpoint at the last successful step.
-3. Self-heal engine inspects the failure mode. If it matches a known pattern (e.g., test failure with fixable assertion), it dispatches an auto-fix agent.
-4. If self-heal succeeds, the step is retried one more time.
-5. If self-heal fails or is not applicable, the pipeline pauses and notifies the operator via Slack.
-6. Operator can resume from checkpoint without re-executing completed steps.
-
 ---
 
-## 6. Data Flow Diagram
+## 5. Dashboard Architecture
 
-The following diagram traces the 12-document generation pipeline from client brief to completed document bundle. This is the platform's primary value-delivering workflow.
+### 5.1 Framework
+
+**Streamlit** -- chosen for rapid development of data-centric operator UIs with Python-native integration. The dashboard is a consumer of the REST API; it makes zero direct database calls and imports zero shared service modules.
+
+### 5.2 Pages
+
+| Page | URL Path | Primary Persona | Key Components | REST Endpoints Consumed |
+|------|----------|----------------|----------------|------------------------|
+| **Fleet Health** | `/` | David (DevOps) | Agent status grid (green/yellow/red), cost utilization gauges, active pipeline count, pending gate count, system health indicators | `GET /api/v1/health/fleet`, `GET /api/v1/cost/report`, `GET /api/v1/pipelines?status=running` |
+| **Cost Monitor** | `/cost` | David, Fatima | Budget utilization bars at fleet/project/agent, trend charts, forecast line, budget alert history | `GET /api/v1/cost/report`, `GET /api/v1/cost/forecast`, `GET /api/v1/cost/alerts` |
+| **Pipeline Runs** | `/pipelines` | Marcus, Anika | Run list with status badges, step timeline, cost accumulation graph, document output list, filter by project/status/date | `GET /api/v1/pipelines`, `GET /api/v1/pipelines/{id}`, `GET /api/v1/pipelines/{id}/outputs` |
+| **Audit Log** | `/audit` | Fatima | 13-field event table with column filters, drill-down to event detail, hash integrity indicator, PII detection filter, correlation trace | `GET /api/v1/audit/events`, `GET /api/v1/audit/summary`, `POST /api/v1/audit/verify` |
+| **Approval Queue** | `/approvals` | Anika | Pending gates list with priority sort, document preview with side panels (input requirements + reasoning chain), approve/reject with structured comments, escalation timer | `GET /api/v1/approvals?status=pending`, `GET /api/v1/approvals/{id}`, `POST /api/v1/approvals/{id}/approve`, `POST /api/v1/approvals/{id}/reject` |
+
+### 5.3 Data Refresh Strategy
+
+| Strategy | Mechanism | Interval |
+|----------|-----------|----------|
+| Auto-poll | `st.experimental_fragment` with `run_every=30` | Every 30 seconds |
+| Manual refresh | "Refresh" button in page header | On-demand |
+| Critical pages (Fleet Health) | Shorter polling interval | Every 10 seconds |
+
+### 5.4 Authentication
+
+- **Session-based** via Streamlit's built-in auth (`st.experimental_user`)
+- Session stores user identity for audit trail attribution
+- Role-based page visibility: Compliance pages visible to all; Fleet Controls restricted to DevOps role
+
+### 5.5 Dashboard Architecture Diagram
 
 ```
-CLIENT BRIEF (pasted by David via Streamlit)
-    |
-    v
-+---+-------------------+
-| API Server             |
-| POST /pipeline/trigger |
-| Validates brief,       |
-| creates pipeline_run   |
-+---+-------------------+
-    |
-    v
-+---+-------------------+         +---------------------+
-| G4 Team Orchestrator   |         | cost_metrics (PG)   |
-| Reads team YAML DAG    +-------->+ Pre-check: $25      |
-| Resolves agent configs |         | project ceiling OK? |
-+---+-------------------+         +----------+----------+
-    |                                         |
-    | (if budget OK)                          | (if budget exceeded)
-    v                                         v
-+---+-------------------+               PIPELINE BLOCKED
-| PHASE 1: Sequential   |               Notify David via Slack
-|                        |
-|  Step 1: D1 Roadmap   |
-|    Input: client brief |
-|    Output: ROADMAP.md  |
-|    -> SessionStore     +--------> session_context (PG)
-|                        |          {session_id, roadmap_data}
-|  Step 2: D3 CLAUDE.md |
-|    Input: brief +      |
-|           roadmap      |
-|    Output: CLAUDE.md   |
-|    -> SessionStore     |
-|                        |
-|  Step 3: D2 PRD        |
-|    Input: brief +      |
-|      roadmap + claude  |
-|    Output: PRD.md      |
-|    -> SessionStore     |
-|                        |
-|  Step 4: D4 Feature    |
-|    Catalog             |
-|    Input: PRD          |
-|    Output: FEAT-CAT.md |
-|                        |
-|  Step 5: D9 Backlog    |
-|    Input: PRD + feat   |
-|    Output: BACKLOG.md  |
-+---+-------------------+
-    |
-    v
-+---+-------------------+
-| PHASE 2: Sequential   |
-|                        |
-|  Step 6: D5 Arch       |
-|    Input: PRD + feat + |
-|           backlog      |
-|    Output: ARCH.md     |
-|                        |
-+---+---+---+---+-------+
-    |       |
-    |       +------- APPROVAL GATE (T2) -------+
-    |               Sarah Kim notified          |
-    |               via Slack                   |
-    |               Waits up to 15 min (P95)    |
-    |               If approved: continue       |
-    |               If rejected: pipeline halts |
-    |               If timeout: escalate        |
-    +<--------------+                           |
-    |               (approved)                  |
-    v                                           |
-+---+-------------------+                      |
-| PHASE 3: Parallel     |                      |
-|                        |                      |
-|  +-------+  +-------+ |                      |
-|  | D6    |  | D7    | |                      |
-|  | Data  |  | API   | |                      |
-|  | Model |  | Contr.| |                      |
-|  +---+---+  +---+---+ |                      |
-|      |          |      |                      |
-|      +----+-----+      |                      |
-|           |             |                      |
-+---+-------+-------------+                     |
-    |                                            |
-    v                                            |
-+---+-------------------+                       |
-| PHASE 4: Sequential   |                       |
-|                        |                       |
-|  Step 9: D8 Enforce-  |                       |
-|    ment Scaffold       |                       |
-|    Input: all upstream |                       |
-|    Output: ENFORCE.md  |                       |
-+---+-------------------+                       |
-    |                                            |
-    v                                            |
-+---+-------------------+                       |
-| PHASE 5: Parallel     |                       |
-|                        |                       |
-|  +-------+  +-------+ |                       |
-|  | D9    |  | D10   | |                       |
-|  | Qual  |  | Test  | |                       |
-|  | Spec  |  | Strat | |                       |
-|  +---+---+  +---+---+ |                       |
-|      |          |      |                       |
-|      +----+-----+      |                       |
-|           |             |                       |
-+---+-------+-------------+                      |
-    |                                             |
-    v                                             |
-+---+-------------------+                        |
-| PHASE 6: Sequential   |                        |
-|                        |                        |
-|  Step 12: D11 Design  |                        |
-|    Spec                |                        |
-|    Input: all upstream |                        |
-|    Output: DESIGN.md   |                        |
-+---+-------------------+                        |
-    |                                             |
-    v                                             |
-+---+-------------------+    +-------------------+
-| ResultCollector        |    | audit_events (PG) |
-| Aggregate 12 docs     +--->+ 12 audit records  |
-| Write to reports/      |    | (1 per agent)     |
-|   {project_id}/        |    +-------------------+
-+---+-------------------+
-    |
-    v
-+---+-------------------+    +-------------------+
-| Git Commit             |    | Slack             |
-| Commit 12 docs to      +--->+ Notify David:    |
-| project repo branch   |    | "Pipeline done,   |
-+---+-------------------+    |  12 docs, $18.50, |
-    |                         |  28 min"          |
-    v                         +-------------------+
-+---+-------------------+
-| Dashboard Update       |
-| Pipeline status: GREEN |
-| David downloads bundle |
-+------------------------+
++-------------------------------------------------------------+
+|                   STREAMLIT DASHBOARD                        |
+|                                                              |
+|  +------------------+  +------------------+                  |
+|  | Fleet Health     |  | Cost Monitor     |                  |
+|  | - Agent grid     |  | - Budget bars    |                  |
+|  | - Cost gauges    |  | - Trend charts   |                  |
+|  | - Pipeline count |  | - Forecast line  |                  |
+|  +--------+---------+  +--------+---------+                  |
+|           |                     |                            |
+|  +--------+---------+  +--------+---------+  +-----------+   |
+|  | Pipeline Runs    |  | Audit Log        |  | Approval  |   |
+|  | - Run timeline   |  | - Event table    |  | Queue     |   |
+|  | - Step progress  |  | - Hash verify    |  | - Preview |   |
+|  | - Cost graph     |  | - PII filter     |  | - Actions |   |
+|  +--------+---------+  +--------+---------+  +-----+-----+   |
+|           |                     |                  |         |
+|  +--------+---------------------+------------------+-----+   |
+|  |              REST API Client (requests/httpx)         |   |
+|  |  base_url: http://localhost:8080/api/v1               |   |
+|  +---------------------------+---------------------------+   |
++------------------------------+-------------------------------+
+                               |
+                          HTTP requests
+                               |
+                      +--------v--------+
+                      |    REST API     |
+                      |   (aiohttp)    |
+                      +--------+--------+
+                               |
+                      Shared Service Layer
 ```
 
-**Data Format at Each Stage:**
+---
 
-| Stage           | Format                 | Storage                           |
-| --------------- | ---------------------- | --------------------------------- |
-| Client Brief    | Raw text (Markdown)    | Pipeline input, session_context   |
-| Agent Input     | Message envelope (JSON)| In-memory (asyncio queue)         |
-| Agent Output    | Message envelope (JSON)| session_context (JSONB), reports/ |
-| Audit Record    | 13-field JSONL         | audit_events (immutable)          |
-| Cost Record     | Decimal USD            | cost_metrics                      |
-| Final Documents | Markdown files         | reports/{project_id}/, Git repo   |
+## 6. Component Diagram (C4 Level 3)
 
-**Human Gates in the Pipeline:**
+Internal components within the Shared Service Layer and Agent Runtime:
 
-| Gate          | Location        | Tier | Approver        | Timeout  | Escalation          |
-| ------------- | --------------- | ---- | --------------- | -------- | ------------------- |
-| Architecture  | After Step 6    | T2   | Sarah Kim       | 15 min   | David Chen          |
-| Deployment    | Before deploy   | T2   | Priya Mehta     | 15 min   | Marcus Johnson      |
+```
++===========================================================================+
+|                           SHARED SERVICE LAYER                            |
+|                                                                           |
+|  +-------------------+  +-------------------+  +--------------------+     |
+|  | PipelineService   |  | AgentService      |  | CostService        |     |
+|  | - trigger()       |  | - list_agents()   |  | - get_report()     |     |
+|  | - get_status()    |  | - invoke()        |  | - check_budget()   |     |
+|  | - resume()        |  | - health_check()  |  | - record_spend()   |     |
+|  | - cancel()        |  | - deploy_version()|  | - get_forecast()   |     |
+|  +--------+----------+  +--------+----------+  +--------+-----------+     |
+|           |                      |                       |                |
+|  +--------+----------+  +-------+----------+  +---------+----------+     |
+|  | ApprovalService   |  | AuditService     |  | KnowledgeService   |     |
+|  | - approve()       |  | - query_events() |  | - search()         |     |
+|  | - reject()        |  | - record_event() |  | - create()         |     |
+|  | - list_pending()  |  | - verify_chain() |  | - promote()        |     |
+|  +-------------------+  | - gen_report()   |  +--------------------+     |
+|                         +------------------+                              |
+|  +-------------------+  +-------------------+                             |
+|  | HealthService     |  | SessionService    |                             |
+|  | - fleet_health()  |  | - create()        |                             |
+|  | - agent_health()  |  | - get_context()   |                             |
+|  | - system_health() |  | - append_context()|                             |
+|  +-------------------+  +-------------------+                             |
++===========================================================================+
+
++===========================================================================+
+|                            AGENT RUNTIME                                  |
+|                                                                           |
+|  SDK Core:                                                                |
+|  +---------------+  +------------------+  +------------------+            |
+|  | BaseAgent     |  | ManifestLoader   |  | SchemaValidator  |            |
+|  | - query()     |  | - load(path)     |  | - validate()     |            |
+|  | - pre_hooks() |  | - resolve_config |  | - validate_input |            |
+|  | - post_hooks()|  |   (4-layer)      |  | - validate_output|            |
+|  +-------+-------+  +------------------+  +------------------+            |
+|          |                                                                |
+|  +-------v-------+  +------------------+  +------------------+            |
+|  | BaseHooks     |  | SessionStore     |  | CostStore        |            |
+|  | - pii_scan()  |  | - read(key)      |  | - record()       |            |
+|  | - audit_log() |  | - write(key,val) |  | - check_limit()  |            |
+|  | - cost_check()|  | - accumulate()   |  | - get_remaining()|            |
+|  +---------------+  +------------------+  +------------------+            |
+|                                                                           |
+|  Orchestration:                                                           |
+|  +------------------+  +------------------+  +------------------+         |
+|  | PipelineRunner   |  | TeamOrchestrator |  | ApprovalStore    |         |
+|  | - execute_dag()  |  | - run_team()     |  | - create_gate()  |         |
+|  | - checkpoint()   |  | - merge_results()|  | - wait_for_      |         |
+|  | - resume_from()  |  | - parallel()     |  |   resolution()   |         |
+|  +------------------+  +------------------+  +------------------+         |
+|                                                                           |
+|  +------------------+                                                     |
+|  | Checkpoint       |                                                     |
+|  | - save_state()   |                                                     |
+|  | - load_state()   |                                                     |
+|  | - list_checkpts()|                                                     |
+|  +------------------+                                                     |
+|                                                                           |
+|  Enforcement:                                                             |
+|  +------------------+  +------------------+  +------------------+         |
+|  | RateLimiter      |  | CostController   |  | CircuitBreaker   |         |
+|  | - acquire()      |  | - pre_invoke()   |  | - call()         |         |
+|  | - release()      |  | - post_invoke()  |  | - record_failure |         |
+|  | - configure()    |  | - hard_stop()    |  | - record_success |         |
+|  +------------------+  +------------------+  | - is_open()      |         |
+|                                              +------------------+         |
+|                                                                           |
+|  Evaluation:                          Communication:                      |
+|  +------------------+                 +------------------+                |
+|  | QualityScorer    |                 | Envelope         |                |
+|  | - score_rubric() |                 | - 13-field typed |                |
+|  | - check_golden() |                 |   message format |                |
+|  | - check_advers() |                 | - serialize()    |                |
+|  +------------------+                 | - validate()     |                |
+|                                       +------------------+                |
+|                                       +------------------+                |
+|                                       | WebhookSender    |                |
+|                                       | - send_slack()   |                |
+|                                       | - send_pager()   |                |
+|                                       +------------------+                |
++===========================================================================+
+```
 
 ---
 
-## 7. What I'd Do Differently at 10x Scale
+## 7. Tech Stack Decisions
 
-The following architectural decisions are correct for v1.0 (single-team, <50 concurrent agents, <10 projects) but would need replacement at 10x scale (500 agents, 100 projects, 50 concurrent users).
-
-### 7.1 Single PostgreSQL Instance --> Sharded PostgreSQL or Aurora
-
-**What breaks:** A single PostgreSQL instance handles all reads and writes: audit events, cost metrics, session context, pipeline state. At 10x scale, the `audit_events` table alone would see ~500K INSERTs/day. Cost enforcement queries (which run before every agent invocation) would contend with audit writes.
-
-**Why:** PostgreSQL vertical scaling has a ceiling. Write amplification from JSONB columns and immutable audit table bloat will degrade performance.
-
-**Replace with:** Amazon Aurora PostgreSQL with read replicas for dashboard queries. Partition `audit_events` by month. Consider Aurora Serverless v2 for auto-scaling. For extreme write throughput, offload audit events to a write-optimized store (TimescaleDB or ClickHouse) with async replication from the primary.
-
-### 7.2 In-Process Pipeline Orchestrator --> Distributed Task Queue
-
-**What breaks:** The Pipeline Orchestrator runs as a single asyncio process. At 10x, 100 concurrent pipelines with parallel branches would exhaust the event loop. A crash kills all in-flight pipelines. No horizontal scaling.
-
-**Why:** asyncio queues are in-memory with no persistence. If the process dies, all in-flight messages and pipeline state are lost (checkpoints survive in PostgreSQL, but the orchestration state does not).
-
-**Replace with:** Celery with Redis broker or Temporal.io for workflow orchestration. Temporal provides durable execution, automatic retry, and visibility into running workflows. Each pipeline step becomes a Temporal activity with built-in checkpoint semantics, eliminating the custom `PipelineCheckpoint` store.
-
-### 7.3 Streamlit Dashboard --> React SPA with API Backend
-
-**What breaks:** Streamlit re-runs the entire script on every interaction. At 10x users (50 concurrent dashboard sessions), Streamlit's single-threaded execution model creates contention. No fine-grained state management, no optimistic updates, no WebSocket push for real-time pipeline progress.
-
-**Why:** Streamlit is designed for data exploration prototypes, not production multi-user dashboards. It lacks authentication middleware, route-level caching, and component-level rendering control.
-
-**Replace with:** React SPA (Next.js or Vite) backed by the existing aiohttp API Server. WebSocket connection for real-time pipeline progress. Role-based route guards. Server-side rendering for audit reports. Component library (shadcn/ui or similar) for consistent UI.
-
-### 7.4 File-Based Report Output --> Object Storage (S3)
-
-**What breaks:** Reports are written to the local filesystem at `reports/{project_id}/`. At 10x, multiple pipeline orchestrator instances cannot share a local filesystem. No durability guarantees against disk failure. No CDN for client access. No versioning.
-
-**Why:** Local filesystem is a single-host constraint. It prevents horizontal scaling of the pipeline orchestrator and dashboard.
-
-**Replace with:** Amazon S3 with per-project prefixes (`s3://asdlc-reports/{client_id}/{project_id}/`). Enable S3 versioning for audit trail of document revisions. Serve via CloudFront presigned URLs for client access. Lifecycle policies to archive old reports to Glacier.
-
-### 7.5 Single-Region Deployment --> Multi-Region Active-Passive
-
-**What breaks:** All infrastructure runs in a single AWS region. A regional outage (which has happened historically) takes down the entire platform. No geographic locality for clients in different regions.
-
-**Why:** Multi-region adds complexity: database replication lag, split-brain risk, global load balancing, and cross-region cost. At v1 scale with a single team, this complexity is not justified.
-
-**Replace with:** Active-passive multi-region with Aurora Global Database for PostgreSQL replication. API Server behind Route 53 with health-check failover. S3 Cross-Region Replication for reports. Stateless API servers in the passive region can serve reads immediately; writes failover requires Aurora global failover (typically <1 minute). Accept eventual consistency on reads during failover.
+| # | Decision | Choice | Alternatives Considered | Rationale | Trade-offs |
+|---|----------|--------|------------------------|-----------|------------|
+| 1 | **Language** | Python 3.12 | TypeScript, Go, Rust | Claude Agent SDK is Python-native; entire AI/ML ecosystem is Python; team expertise is Python | GIL limits CPU parallelism (mitigated by asyncio for I/O); runtime type safety weaker than Go/Rust |
+| 2 | **REST Framework** | aiohttp | FastAPI, Flask, Django REST | Native asyncio without ASGI adapter; lightweight; matches async-first service layer | Smaller ecosystem than FastAPI; no auto-generated OpenAPI docs (we generate manually); less middleware ecosystem |
+| 3 | **MCP SDK** | Claude Agent SDK (built-in MCP) | Custom MCP implementation, mcp-python | Official Anthropic SDK; maintained alongside Claude; tool/resource/prompt primitives built in | Tied to Anthropic's release cadence; fewer community extensions than standalone mcp-python |
+| 4 | **MCP Transport** | stdio (dev) + streamable-http (prod) | SSE, WebSocket, gRPC | stdio is zero-config for Claude Code local dev; streamable-http is the MCP standard for networked deployment | stdio requires process-per-connection; streamable-http adds HTTP overhead vs raw TCP |
+| 5 | **Dashboard Framework** | Streamlit | Grafana, Retool, React SPA, Dash | Pure Python; rapid prototyping; built-in auth; native charts; team does not need to maintain JS/TS frontend code | Limited customization vs React SPA; polling-based (no WebSocket push); single-threaded per session; harder to build complex interactive UIs |
+| 6 | **Database** | PostgreSQL 16 | SQLite, MySQL, MongoDB, DynamoDB | JSONB for flexible audit records; RLS for multi-tenancy; materialized views for cost aggregation; ACID for budget enforcement | Operational overhead vs SQLite; requires managed instance; vertical scaling limits |
+| 7 | **Shared Service Pattern** | Async service classes with DI | Repository pattern, CQRS, microservices | Services own all business logic; constructor injection of DB pool and config; testable via mock injection | Monolithic service layer; no independent scaling of read vs write paths |
+| 8 | **Agent Orchestration** | asyncio.gather() + DAG runner | Celery, Temporal, Airflow, Prefect | Zero infrastructure dependency; DAG is defined in pipeline YAML; checkpoint/resume via PostgreSQL | No built-in retry/backpressure from a workflow engine; manual DAG implementation; no distributed execution across machines |
+| 9 | **Message Format** | Typed Envelope (13-field dataclass) | Protobuf, Avro, plain JSON dict | Dataclass gives runtime validation; JSON-serializable for audit; no code generation step needed | No binary encoding (larger payloads); no cross-language schema; schema evolution requires manual migration |
+| 10 | **Auth Strategy** | API key (MCP/REST) + session (dashboard) | OAuth2, JWT, mTLS | API key is simplest for internal tool; session auth is Streamlit-native; no external IdP dependency | No token expiration/rotation built in; API key is a shared secret; no fine-grained scopes |
+| 11 | **CI/CD** | GitHub Actions | GitLab CI, Jenkins, CircleCI | Team already uses GitHub; native Python/PostgreSQL service containers; MCP test harness runs in CI | Vendor lock-in to GitHub; limited self-hosted runner control |
+| 12 | **Observability** | 13-field JSONL audit + cost_metrics table + Python structlog | OpenTelemetry, Datadog, ELK stack | Self-contained within PostgreSQL; no external observability vendor dependency; audit records ARE the observability layer | No distributed tracing spans; no flame graphs; manual correlation vs automatic trace propagation; query performance degrades at very high audit volumes |
+| 13 | **Schema Validation** | JSON Schema 2020-12 | Pydantic-only, Protobuf, Avro | Language-agnostic; MCP tools and REST both validate against same schema files; tooling ecosystem mature | Verbose schema definitions; no code generation; validation at runtime only |
+| 14 | **Configuration Resolution** | 4-layer YAML (archetype > mixin > manifest > client) | Single config file, environment variables, etcd | Composable defaults; client-specific overrides without forking manifests; YAML is human-readable | Complex merge logic; 4 layers can be hard to debug; no live config reload |
 
 ---
 
-*End of document.*
+## 8. Cross-Cutting Concerns
+
+### 8.1 Authentication and Authorization
+
+```
+MCP Request Flow:
+  Client sends tool call
+  -> MCP Server reads AGENTIC_SDLC_API_KEY from env (stdio) or Authorization header (http)
+  -> Middleware validates key against allowed_keys table
+  -> Tool handler executes with authenticated identity
+  -> Audit record includes identity
+
+REST Request Flow:
+  Client sends HTTP request with X-API-Key header
+  -> aiohttp middleware extracts and validates key
+  -> Route handler executes with authenticated identity
+  -> Audit record includes identity
+
+Dashboard Flow:
+  User opens Streamlit app
+  -> st.experimental_user provides session identity
+  -> Dashboard includes identity in all REST API calls via X-User header
+  -> REST API trusts dashboard-originated requests (internal network only)
+```
+
+**Authorization Model (v1.0):** Role-based, with three roles:
+- `operator`: Full access to all MCP tools and REST endpoints
+- `viewer`: Read-only access (GET endpoints, read MCP tools)
+- `compliance`: Read access plus audit report generation
+
+### 8.2 Multi-Tenancy (Project Isolation)
+
+- **Scoping:** Every database table includes `project_id`. All service methods accept `project_id` and filter accordingly.
+- **Row-Level Security:** PostgreSQL RLS policies enforce that queries scoped to a project cannot access rows from other projects. RLS policies are applied on `pipeline_runs`, `session_store`, `cost_events`, `audit_events`, `knowledge_entries`.
+- **Session Isolation:** SessionStore namespaces keys by `project_id`. No cross-project context leakage.
+- **Budget Isolation:** Each project has its own budget allocation (`project_budgets` table). Budget exhaustion in project A does not affect project B.
+- **Failure Isolation:** Pipeline failures, agent errors, and circuit breaker trips are scoped per project. A runaway pipeline in one project cannot starve another.
+
+### 8.3 Observability
+
+**Audit Trail (13-field JSONL):**
+```
+{
+  "envelope_id": "uuid",
+  "correlation_id": "uuid (pipeline run)",
+  "session_id": "uuid",
+  "project_id": "string",
+  "agent_id": "string",
+  "timestamp": "ISO 8601",
+  "input_hash": "SHA-256",
+  "output_hash": "SHA-256",
+  "cost_usd": "decimal",
+  "latency_ms": "integer",
+  "confidence": "float 0-1",
+  "model": "string (claude-sonnet-4-20250514, etc.)",
+  "status": "enum (success, failure, timeout, budget_exceeded)"
+}
+```
+
+**Cost Metrics:** `cost_events` table with real-time inserts; `cost_summary_mv` materialized view refreshed every 60 seconds for aggregation queries.
+
+**Structured Logging:** Python `structlog` with JSON output. Fields: `timestamp`, `level`, `service`, `method`, `project_id`, `agent_id`, `duration_ms`, `error`.
+
+**Health Checks:** Background worker polls all 48 agents every 60 seconds. Results written to `agent_health` table. Fleet health endpoint aggregates.
+
+### 8.4 Error Handling and Propagation
+
+Services raise typed exceptions. Each interface layer maps them to protocol-appropriate responses:
+
+| Service Exception | MCP Response | REST Response | Dashboard Display |
+|-------------------|-------------|---------------|-------------------|
+| `BudgetExceededError` | Tool error with `code: "BUDGET_EXCEEDED"`, `message`, `budget_remaining` | HTTP 402 with JSON body `{"error": "budget_exceeded", "details": {...}}` | Red toast: "Budget exceeded for {scope}" |
+| `PipelineNotFoundError` | Tool error with `code: "NOT_FOUND"` | HTTP 404 | Redirect to pipeline list with "Run not found" message |
+| `GateAlreadyResolvedError` | Tool error with `code: "CONFLICT"` | HTTP 409 | Toast: "This gate has already been resolved" |
+| `ValidationError` | Tool error with `code: "INVALID_INPUT"`, `details: [field errors]` | HTTP 422 with field-level errors | Inline form validation messages |
+| `AgentUnavailableError` | Tool error with `code: "UNAVAILABLE"` | HTTP 503 | Yellow warning: "Agent temporarily unavailable" |
+| `DatabaseUnavailableError` | Tool error with `code: "INTERNAL"` | HTTP 500 | Red banner: "System error. Try again." |
+| `CostTrackingDegradedError` | Tool error with `code: "FAIL_SAFE"`, `message: "Cost tracking unavailable, all invocations blocked"` | HTTP 503 with fail-safe explanation | Red banner: "System in fail-safe mode" |
+
+**Fail-Safe Principle:** If cost tracking or audit logging is unavailable, all agent invocations are blocked. The system fails closed, never open.
+
+---
+
+## 9. Data Flow Diagrams
+
+### 9.1 MCP Path: Developer Triggers Pipeline
+
+```
+Developer                MCP Server            Shared Service         Database          Claude API
+(Claude Code)            (agents)              Layer                  (PostgreSQL)      (Anthropic)
+    |                        |                      |                      |                 |
+    |  trigger_pipeline      |                      |                      |                 |
+    |  {project_id,          |                      |                      |                 |
+    |   pipeline_id,         |                      |                      |                 |
+    |   input_data}          |                      |                      |                 |
+    +----------------------->|                      |                      |                 |
+    |                        |  pipeline_service    |                      |                 |
+    |                        |  .trigger()          |                      |                 |
+    |                        +--------------------->|                      |                 |
+    |                        |                      |  INSERT pipeline_run |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |       run_id         |                 |
+    |                        |                      |<---------------------+                 |
+    |                        |                      |                      |                 |
+    |                        |                      |  Enqueue to          |                 |
+    |                        |                      |  PipelineRunner      |                 |
+    |                        |  {run_id, status:    |                      |                 |
+    |                        |   "started",         |                      |                 |
+    |   MCP tool result      |   est_cost}          |                      |                 |
+    |<-----------------------+<---------------------+                      |                 |
+    |                        |                      |                      |                 |
+    |                        |        [ASYNC: PipelineRunner executes]     |                 |
+    |                        |                      |                      |                 |
+    |                        |                      |  For each DAG step:  |                 |
+    |                        |                      |  1. Check budget     |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |  2. Invoke agent     |                 |
+    |                        |                      +-------------------------------------------->|
+    |                        |                      |       completion + tokens                   |
+    |                        |                      |<-------------------------------------------+
+    |                        |                      |  3. Record cost      |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |  4. Record audit     |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |  5. Checkpoint       |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |                      |                 |
+    |  check_pipeline_status |                      |                      |                 |
+    +----------------------->|                      |                      |                 |
+    |                        +--------------------->|                      |                 |
+    |                        |                      +--------------------->|                 |
+    |                        |                      |<---------------------+                 |
+    |   {status, progress,   |                      |                      |                 |
+    |    cost_so_far, step}  |                      |                      |                 |
+    |<-----------------------+<---------------------+                      |                 |
+    |                        |                      |                      |                 |
+```
+
+### 9.2 Dashboard Path: Operator Reviews Approval Gate
+
+```
+Operator                 Streamlit           REST API            Shared Service         Database
+(Browser)                Dashboard           (aiohttp)           Layer                  (PostgreSQL)
+    |                        |                    |                    |                      |
+    |  Open /approvals       |                    |                    |                      |
+    +----------------------->|                    |                    |                      |
+    |                        |  GET /api/v1/      |                    |                      |
+    |                        |  approvals?        |                    |                      |
+    |                        |  status=pending    |                    |                      |
+    |                        +------------------->|                    |                      |
+    |                        |                    | approval_service   |                      |
+    |                        |                    | .list_pending()    |                      |
+    |                        |                    +------------------->|                      |
+    |                        |                    |                    |  SELECT FROM          |
+    |                        |                    |                    |  approval_events      |
+    |                        |                    |                    |  WHERE status=pending |
+    |                        |                    |                    +--------------------->|
+    |                        |                    |                    |<---------------------+
+    |                        |                    |<-------------------+                      |
+    |                        |  JSON response     |                    |                      |
+    |                        |<-------------------+                    |                      |
+    |   Rendered approval    |                    |                    |                      |
+    |   queue page           |                    |                    |                      |
+    |<-----------------------+                    |                    |                      |
+    |                        |                    |                    |                      |
+    |  Click "Approve"       |                    |                    |                      |
+    |  {gate_id, note}       |                    |                    |                      |
+    +----------------------->|                    |                    |                      |
+    |                        |  POST /api/v1/     |                    |                      |
+    |                        |  approvals/{id}/   |                    |                      |
+    |                        |  approve           |                    |                      |
+    |                        +------------------->|                    |                      |
+    |                        |                    | approval_service   |                      |
+    |                        |                    | .approve()         |                      |
+    |                        |                    +------------------->|                      |
+    |                        |                    |                    |  UPDATE approval_event|
+    |                        |                    |                    |  SET status=approved  |
+    |                        |                    |                    +--------------------->|
+    |                        |                    |                    |                      |
+    |                        |                    |                    |  Notify pipeline      |
+    |                        |                    |                    |  runner to resume     |
+    |                        |                    |                    |                      |
+    |                        |                    |                    |  Send Slack           |
+    |                        |                    |                    |  confirmation         |
+    |                        |                    |<-------------------+                      |
+    |                        |  HTTP 200 OK       |                    |                      |
+    |                        |<-------------------+                    |                      |
+    |   Success toast +      |                    |                    |                      |
+    |   updated queue        |                    |                    |                      |
+    |<-----------------------+                    |                    |                      |
+    |                        |                    |                    |                      |
+```
+
+---
+
+## 10. Interface Parity Matrix
+
+This matrix shows which capabilities are accessible through which interface and to what degree.
+
+| # | Capability | MCP | REST API | Dashboard | Notes |
+|---|-----------|-----|----------|-----------|-------|
+| C1 | Agent Orchestration | Full | Full | Partial | Dashboard shows orchestration status but cannot configure orchestration levels |
+| C2 | 12-Document Pipeline | Full | Full | Partial | Dashboard views pipeline runs and outputs; trigger/resume only via MCP/REST |
+| C3 | Cost Control & Governance | Full | Full | Full | All three interfaces read from same cost_summary_mv materialized view |
+| C4 | Human-in-the-Loop | Full | Full | Full | MCP: approve_gate/reject_gate; Dashboard: visual review + structured comments |
+| C5 | Quality Assurance | Partial | Full | Partial | MCP: view scores; REST: trigger test suites; Dashboard: view quality reports |
+| C6 | Observability & Audit | Full | Full | Full | MCP: query audit log; REST: full CRUD; Dashboard: visual explorer + reports |
+| C7 | Knowledge Management | Full | Full | Partial | MCP: search/create/promote; Dashboard: browse knowledge base (read-only) |
+| C8 | Pipeline Resilience | Full | Full | Partial | MCP/REST: checkpoint/resume/cancel; Dashboard: view status, pause button |
+| C9 | Agent Lifecycle | Partial | Full | Full | REST: deploy/rollback/promote; Dashboard: full lifecycle UI; MCP: read-only |
+| C10 | Multi-Project Isolation | Full | Full | Full | All interfaces scope by project_id; dashboard has project selector |
+| C11 | MCP Server Exposure | **Full** | N/A | N/A | This IS the MCP interface -- MCP-native by definition |
+| C12 | Dashboard / Operator UI | N/A | Partial | **Full** | REST feeds the dashboard; MCP users get raw data, not visual UI |
+
+**Reading the matrix:**
+- **Full**: All operations for this capability are available through this interface
+- **Partial**: Read/view operations available; some write/config operations require a different interface
+- **N/A**: This capability is not applicable to this interface by design
+
+---
+
+## 11. What I'd Do Differently at 10x Scale
+
+### 11.1 Shared Service Layer Becomes a Bottleneck
+
+**What breaks:** At 10x users (60+ concurrent personas, 480+ agents), the in-process shared service layer running in a single Python process cannot handle the concurrent load. asyncio helps with I/O concurrency but the single event loop becomes the serialization point.
+
+**Why:** Python's GIL + single-process architecture means CPU-bound operations (schema validation, hash computation, quality scoring) block the event loop. At 10x, queue depth grows and p95 latency blows past the 500ms target.
+
+**Replacement:** Extract the shared service layer into a set of independent microservices behind a message broker (NATS or Redis Streams). Each service runs in its own process with horizontal scaling. MCP servers and REST API become thin gRPC/HTTP clients. Service mesh (Linkerd) handles routing, retries, and observability.
+
+### 11.2 PostgreSQL Materialized Views Cannot Keep Up
+
+**What breaks:** At 10x data volume (~130K audit events/day, ~50K cost events/day), the 60-second materialized view refresh for `cost_summary_mv` takes too long and blocks concurrent reads. Dashboard cost page shows stale data; MCP cost queries return inconsistent snapshots.
+
+**Why:** Materialized view refresh is a full table rewrite in PostgreSQL. At high volumes, the refresh takes 10-30 seconds and blocks queries during the swap. Incremental materialized views are not natively supported.
+
+**Replacement:** Move real-time aggregation to a streaming pipeline (Apache Flink or Materialize). Cost events flow through the stream processor, which maintains continuously-updated aggregations. MCP and REST query the stream processor's materialized state instead of PostgreSQL views. PostgreSQL remains the source of truth for raw events.
+
+### 11.3 Streamlit Hits Concurrency Ceiling
+
+**What breaks:** At 10x dashboard users (~50 concurrent sessions), Streamlit's single-threaded-per-session model requires 50 Python processes. Memory usage explodes (each Streamlit session holds page state in memory). The 10-second polling interval from 50 sessions generates 300 REST API requests per minute just for fleet health.
+
+**Why:** Streamlit was designed for data exploration by a few users, not for a production monitoring dashboard serving a team. Each session is an independent Python process with no shared state.
+
+**Replacement:** Migrate to a React SPA frontend with a WebSocket connection for push-based updates. Server-Sent Events (SSE) from the REST API push state changes to connected clients instead of polling. This reduces API load from O(sessions * polling_rate) to O(state_changes). Use a CDN for static assets and a Node.js BFF (Backend For Frontend) for WebSocket management.
+
+### 11.4 Single-Node Agent Runtime Cannot Distribute DAG Execution
+
+**What breaks:** At 10x pipelines (~50 concurrent pipeline runs with 12 steps each), the single-node asyncio DAG runner cannot parallelize across machines. A long-running agent step (e.g., D5-architecture-drafter taking 60 seconds) blocks the event loop's capacity for other pipeline steps.
+
+**Why:** The DAG runner uses `asyncio.gather()` which parallelizes I/O but runs in a single process on a single machine. There is no work distribution, no backpressure, and no independent scaling of agent execution.
+
+**Replacement:** Adopt Temporal or a similar workflow orchestration engine. Each pipeline step becomes a Temporal activity executed by a worker pool. Workers scale horizontally. Temporal handles retries, timeouts, checkpointing, and visibility natively. The PipelineService becomes a Temporal workflow definition; the checkpoint/resume logic is replaced by Temporal's built-in durable execution.
+
+### 11.5 API Key Auth Does Not Scale to Multi-Team
+
+**What breaks:** At 10x teams (~10 independent teams using the platform), a single shared API key provides no per-team identity, no fine-grained permissions, no key rotation without coordinated downtime, and no ability to revoke a compromised team's access without affecting others.
+
+**Why:** API key auth was chosen for simplicity in a single-team internal tool. It has no concept of scopes, expiration, or issuer identity.
+
+**Replacement:** Adopt OAuth2 with short-lived JWTs issued by an internal IdP (Keycloak or Auth0). Each team gets its own client credentials. Tokens carry scopes (`pipelines:write`, `audit:read`, `fleet:admin`). MCP servers validate JWTs via a shared JWKS endpoint. Dashboard uses OIDC authorization code flow. Key rotation is per-team and non-disruptive.
+
+---
+
+*This architecture document defines HOW the Agentic SDLC Platform is structured. It establishes the Shared Service Layer as the central pattern that ensures MCP, REST, and Dashboard interfaces are equal citizens with zero logic duplication. Downstream documents (CLAUDE.md, DATA-MODEL, API-CONTRACTS, DESIGN-SPEC, etc.) should read this document as their structural foundation.*

@@ -1,0 +1,15 @@
+{
+  "test_id": "TC-003",
+  "description": "Empty cost data — zero cost report",
+  "input": {
+    "scope": "project",
+    "scope_id": "proj-new",
+    "period_days": 7,
+    "include_breakdown": false,
+    "cost_data": [],
+    "budget_config": {"budget_usd": 20.00, "period": "daily"}
+  },
+  "expected_output_contains": ["summary", "recommendations"],
+  "expected_total_cost": 0,
+  "max_cost_usd": 0.01
+}

@@ -1,0 +1,19 @@
+{
+  "test_id": "ADV-001",
+  "description": "Budget exceeded — cost over 100% of budget",
+  "input": {
+    "scope": "agent",
+    "scope_id": "D5-architecture-drafter",
+    "period_days": 1,
+    "include_breakdown": true,
+    "cost_data": [
+      {"agent_id": "D5-architecture-drafter", "cost_usd": 7.50, "invocations": 5}
+    ],
+    "budget_config": {"budget_usd": 5.00, "period": "daily"}
+  },
+  "expected_output_contains": ["summary", "alerts", "recommendations"],
+  "expected_utilization_above": 100,
+  "expected_alert_present": true,
+  "expected_recommendation_present": true,
+  "max_cost_usd": 0.01
+}

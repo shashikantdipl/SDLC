@@ -1,0 +1,94 @@
+# G1-cost-tracker — Cost monitoring and budget enforcement
+# GOLD STANDARD: Every new agent follows this manifest structure exactly.
+
+identity:
+  id: G1-cost-tracker
+  name: Cost Tracker
+  version: "1.0.0"
+  description: "Monitors and reports agent invocation costs against fleet, project, and agent-level budgets"
+  owner: platform-team
+  phase: govern
+  extends: governance
+  mixins: []
+  tags: [cost, budget, governance, monitoring]
+
+foundation_model:
+  model: claude-haiku-4-5-20251001
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [scope, scope_id]
+    properties:
+      scope:
+        type: string
+        enum: [fleet, project, agent]
+        description: "Budget scope level"
+      scope_id:
+        type: string
+        description: "Identifier for the scope (fleet ID, project ID, or agent ID)"
+      period_days:
+        type: integer
+        default: 7
+        description: "Number of days to include in the cost report"
+      include_breakdown:
+        type: boolean
+        default: true
+        description: "Whether to include per-agent cost breakdown"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/cost-report.schema.json
+  channels: [stdout]
+  writes_to: cost_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.05
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.04
+      action: slack_alert
+
+maturity:
+  current_level: professional
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [cost_metrics, agent_registry]
+    writes: [audit_trail, cost_report]
+  regulations: []

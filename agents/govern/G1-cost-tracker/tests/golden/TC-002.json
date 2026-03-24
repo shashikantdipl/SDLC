@@ -1,0 +1,21 @@
+{
+  "test_id": "TC-002",
+  "description": "Fleet cost report with high utilization triggering alert",
+  "input": {
+    "scope": "fleet",
+    "scope_id": "fleet-main",
+    "period_days": 1,
+    "include_breakdown": true,
+    "cost_data": [
+      {"agent_id": "D1-roadmap-generator", "cost_usd": 15.00, "invocations": 20},
+      {"agent_id": "D2-prd-generator", "cost_usd": 18.00, "invocations": 15},
+      {"agent_id": "B1-code-reviewer", "cost_usd": 12.00, "invocations": 40}
+    ],
+    "budget_config": {"budget_usd": 50.00, "period": "daily"}
+  },
+  "expected_output_contains": ["summary", "breakdown", "alerts"],
+  "expected_total_cost": 45.00,
+  "expected_utilization_above": 80,
+  "expected_alert_present": true,
+  "max_cost_usd": 0.01
+}

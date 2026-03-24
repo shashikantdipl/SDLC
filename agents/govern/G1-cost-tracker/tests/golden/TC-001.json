@@ -1,0 +1,20 @@
+{
+  "test_id": "TC-001",
+  "description": "Standard project cost report with 3 agents",
+  "input": {
+    "scope": "project",
+    "scope_id": "proj-001",
+    "period_days": 7,
+    "include_breakdown": true,
+    "cost_data": [
+      {"agent_id": "D1-roadmap-generator", "cost_usd": 0.85, "invocations": 3},
+      {"agent_id": "D2-prd-generator", "cost_usd": 1.20, "invocations": 2},
+      {"agent_id": "D5-architecture-drafter", "cost_usd": 2.50, "invocations": 1}
+    ],
+    "budget_config": {"budget_usd": 20.00, "period": "daily"}
+  },
+  "expected_output_contains": ["summary", "breakdown", "alerts", "recommendations"],
+  "expected_total_cost": 4.55,
+  "expected_agents_in_breakdown": 3,
+  "max_cost_usd": 0.01
+}

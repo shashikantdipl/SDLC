@@ -2009,6 +2009,88 @@
 
 ---
 
+#### Tool: `check_provider_health`
+
+| Field | Value |
+|---|---|
+| **Interaction ID** | I-083 |
+| **Description** | Checks health of LLM providers. Returns reachability, latency, model availability, and pricing for each configured provider (Anthropic, OpenAI, Ollama). |
+| **Shared Service** | `HealthService.check_provider_health()` |
+| **Side Effects** | None (read-only). Sends a minimal health-check prompt to each provider. |
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "provider_name": {
+      "type": "string",
+      "enum": ["anthropic", "openai", "ollama"],
+      "description": "Check a specific provider. If omitted, checks all configured providers."
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+**Output:** `ProviderStatus[]` --- Array of provider status objects containing provider_name, healthy (bool), model_count, default_tier, latency_ms, tier_map, cost_per_1k_input, cost_per_1k_output, last_checked_at.
+
+**Error Cases:**
+
+| Code | Message | Condition |
+|---|---|---|
+| `PROVIDER_NOT_CONFIGURED` | Provider '{name}' is not configured | Provider not in LLM_PROVIDER or no API key set |
+| `PROVIDER_UNREACHABLE` | Provider '{name}' is unreachable | Network or auth failure during health check |
+
+**Example Prompt:**
+> "Are all LLM providers healthy? Check their status."
+
+---
+
+#### Tool: `set_agent_provider`
+
+| Field | Value |
+|---|---|
+| **Interaction ID** | I-084 |
+| **Description** | Sets or clears a per-agent LLM provider override. When set, the agent uses this provider instead of the global LLM_PROVIDER. When cleared, the agent reverts to the global default. |
+| **Shared Service** | `AgentService.set_provider()` |
+| **Side Effects** | Updates agent manifest in registry. Next agent invocation uses new provider. |
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "Agent identifier (e.g., 'G1-cost-tracker')"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["anthropic", "openai", "ollama", null],
+      "description": "Provider name to set. Use null to clear override and revert to global default."
+    }
+  },
+  "required": ["agent_id", "provider"],
+  "additionalProperties": false
+}
+```
+
+**Output:** `AgentDetail` --- Updated agent detail with new provider configuration reflected.
+
+**Error Cases:**
+
+| Code | Message | Condition |
+|---|---|---|
+| `AGENT_NOT_FOUND` | No agent with ID '{agent_id}' | Invalid agent ID |
+| `PROVIDER_NOT_CONFIGURED` | Provider '{provider}' is not configured | Provider not available |
+| `PROVIDER_UNHEALTHY` | Provider '{provider}' is currently unhealthy | Provider failed health check |
+
+**Example Prompt:**
+> "Switch G1-cost-tracker to use OpenAI instead of Anthropic."
+
+---
+
 ## 3. MCP Resources
 
 MCP Resources expose read-only data that AI clients can reference without invoking a tool. Resources use URI templates and return typed content.
@@ -2042,8 +2124,9 @@ MCP Resources expose read-only data that AI clients can reference without invoki
 | Resource URI | Name | MIME Type | Description |
 |---|---|---|---|
 | `system://health` | Fleet Health | `application/json` | Aggregated fleet health dashboard (mirrors `get_fleet_health` output). |
+| `provider://list` | LLM Provider List | `application/json` | List of all configured LLM providers with health status, supported tiers, model mappings, and pricing. Mirrors `check_provider_health` output for all providers. |
 
-**Total resources: 10**
+**Total resources: 11**
 
 ### Resource Access Example
 
@@ -2252,11 +2335,11 @@ Review the exception knowledge base{category ? " focusing on " + category + " en
 
 ### 5.1 API Key Authentication
 
-All MCP servers authenticate using the `ANTHROPIC_API_KEY` environment variable.
+All MCP servers authenticate using the `AGENTIC_SDLC_API_KEY` environment variable. LLM provider credentials are configured separately: `ANTHROPIC_API_KEY` for Anthropic, `OPENAI_API_KEY` for OpenAI, and `OLLAMA_HOST` for Ollama (defaults to `http://localhost:11434`). The active provider is selected via `LLM_PROVIDER` env var.
 
 | Transport | Auth Mechanism | Header/Config |
 |---|---|---|
-| `stdio` | Environment variable | `env: { "ANTHROPIC_API_KEY": "..." }` |
+| `stdio` | Environment variable | `env: { "AGENTIC_SDLC_API_KEY": "..." }` |
 | `streamable-http` | Bearer token | `Authorization: Bearer <api_key>` |
 
 ### 5.2 Permission Levels
@@ -2265,8 +2348,8 @@ Tools are classified into permission tiers:
 
 | Level | Description | Tools |
 |---|---|---|
-| **read** | Read-only operations, no state changes | `get_pipeline_status`, `list_pipeline_runs`, `get_pipeline_documents`, `get_pipeline_config`, `validate_pipeline_input`, `list_agents`, `get_agent`, `check_agent_health`, `get_agent_maturity`, `get_cost_report`, `check_budget`, `query_audit_events`, `get_audit_summary`, `list_pending_approvals`, `get_cost_anomalies`, `search_exceptions`, `list_exceptions`, `get_fleet_health`, `get_mcp_status`, `list_recent_mcp_calls` |
-| **write** | Creates or modifies state | `trigger_pipeline`, `resume_pipeline`, `cancel_pipeline`, `retry_pipeline_step`, `invoke_agent`, `set_canary_traffic`, `create_exception`, `promote_exception`, `export_audit_report` |
+| **read** | Read-only operations, no state changes | `get_pipeline_status`, `list_pipeline_runs`, `get_pipeline_documents`, `get_pipeline_config`, `validate_pipeline_input`, `list_agents`, `get_agent`, `check_agent_health`, `get_agent_maturity`, `get_cost_report`, `check_budget`, `query_audit_events`, `get_audit_summary`, `list_pending_approvals`, `get_cost_anomalies`, `search_exceptions`, `list_exceptions`, `get_fleet_health`, `get_mcp_status`, `list_recent_mcp_calls`, `check_provider_health` |
+| **write** | Creates or modifies state | `trigger_pipeline`, `resume_pipeline`, `cancel_pipeline`, `retry_pipeline_step`, `invoke_agent`, `set_canary_traffic`, `create_exception`, `promote_exception`, `export_audit_report`, `set_agent_provider` |
 | **admin** | Elevated operations affecting fleet-wide configuration | `promote_agent_version`, `rollback_agent_version`, `approve_gate`, `reject_gate`, `update_budget_threshold` |
 
 ### 5.3 Project Scoping
@@ -2278,7 +2361,7 @@ All **write** and **admin** operations that affect project data require a `proje
 API keys can be rotated without downtime:
 
 1. Generate a new key via the admin dashboard.
-2. Update the `ANTHROPIC_API_KEY` environment variable.
+2. Update the `AGENTIC_SDLC_API_KEY` environment variable (and provider-specific keys as needed: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`).
 3. Restart MCP server processes (stdio) or wait for the next health check cycle (streamable-http).
 4. Revoke the old key after confirming the new key works.
 
@@ -2451,6 +2534,8 @@ Every MCP tool is wrapped by a REST endpoint for non-MCP clients. The REST gatew
 | `get_fleet_health` | `/api/v1/system/health` | `GET` | agents | |
 | `get_mcp_status` | `/api/v1/system/mcp` | `GET` | agents | |
 | `list_recent_mcp_calls` | `/api/v1/system/mcp/calls` | `GET` | agents | Filters via query params |
+| `check_provider_health` | `/api/v1/system/providers` | `GET` | agents | Optional `provider_name` query param |
+| `set_agent_provider` | `/api/v1/agents/{agent_id}/provider` | `PUT` | agents | |
 
 ### REST Gateway Configuration
 
@@ -2901,6 +2986,8 @@ export default function () {
 | `get_fleet_health` | Yes | Yes | Yes | |
 | `get_mcp_status` | Yes | Yes | Yes | |
 | `list_recent_mcp_calls` | Yes | Yes | Yes | |
+| `check_provider_health` | Yes | Yes | Yes | Test all 3 providers |
+| `set_agent_provider` | Yes | Yes | No | Test provider switch + revert |
 
 ---
 
@@ -2973,6 +3060,8 @@ All data shapes are defined in the INTERACTION-MAP (Doc 6). This appendix provid
 | I-080 | `get_fleet_health` | agents | read |
 | I-081 | `get_mcp_status` | agents | read |
 | I-082 | `list_recent_mcp_calls` | agents | read |
+| I-083 | `check_provider_health` | agents | read |
+| I-084 | `set_agent_provider` | agents | write |
 
 ---
 

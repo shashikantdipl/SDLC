@@ -100,6 +100,7 @@ This document defines the `.claude/` directory structure, rules, and skills that
     ".claude/skills/new-dashboard-view.md",
     ".claude/skills/new-agent.md",
     ".claude/skills/new-test.md",
+    ".claude/skills/new-provider.md",
     ".claude/skills/new-migration.md"
   ],
   "context": {
@@ -300,6 +301,26 @@ If you see ANY of these patterns, it is a violation:
 - Business logic (if/else on domain state, calculations, multi-step orchestration) in a tool handler or route handler
 - `from services.` in any file under `dashboard/`
 - `import streamlit` in any file under `services/`, `mcp-servers/`, or `api/`
+
+## LLM Provider Abstraction Rule
+
+**Never import `anthropic`, `openai`, or `ollama` directly in agent code.** All LLM calls MUST go through `sdk.llm.LLMProvider`. Only the provider implementations inside `sdk/llm/` are allowed to import provider-specific SDKs.
+
+If you see ANY of these patterns in agent code, it is a violation:
+- `import anthropic` or `from anthropic import` in `agents/**/*.py`
+- `import openai` or `from openai import` in `agents/**/*.py`
+- `import ollama` or `from ollama import` in `agents/**/*.py`
+- Direct model ID references (e.g., `"claude-sonnet-4-6"`, `"gpt-4o"`) in agent code — use tier names instead
+
+**Correct pattern:**
+```python
+from sdk.llm import LLMProvider
+
+class MyAgent(BaseAgent):
+    async def execute(self, input: AgentInput) -> AgentOutput:
+        response = await self.llm.complete(prompt=..., tier="balanced")
+        # self.llm is an LLMProvider injected by BaseAgent
+```
 ```
 
 ---
@@ -707,6 +728,24 @@ input:
 expected_output:
   contains: ["total_cost", "breakdown"]
   status: "success"
+```
+
+## Manifest Tier Rule
+
+**Agent manifests MUST use `tier` (fast/balanced/powerful), NOT hardcoded model IDs.** The platform resolves tiers to concrete model IDs at invocation time based on the active LLM provider (`LLM_PROVIDER` env var).
+
+If you see ANY of these patterns in `manifest.yaml`, it is a violation:
+- `model: claude-sonnet-4-6` or any other hardcoded model ID
+- `model: gpt-4o` or any OpenAI model ID
+- Any field that pins an agent to a specific provider's model
+
+**Correct pattern:**
+```yaml
+# In manifest.yaml:
+cost_profile:
+  tier: balanced          # resolved to claude-sonnet-4-6 (anthropic) or gpt-4o (openai)
+  max_tokens: 16000
+  temperature: 0.2
 ```
 
 ## Orchestration Levels
@@ -2096,7 +2135,86 @@ async def test_<method>_empty_result(service):
 
 ---
 
-### 4.7 `.claude/skills/new-migration.md` — Migration Scaffolding
+### 4.7 `.claude/skills/new-provider.md` — LLM Provider Scaffolding
+
+```markdown
+---
+name: new-provider
+description: "Scaffold a new LLM provider implementation in sdk/llm/"
+usage: "/new-provider <provider_name>"
+example: "/new-provider bedrock"
+---
+
+# /new-provider — LLM Provider Scaffolding
+
+## Usage
+```
+/new-provider <provider_name>
+```
+
+## Arguments
+- `<provider_name>`: Provider identifier in lowercase (e.g., `bedrock`, `gemini`, `together`).
+
+## Files Created (3 files)
+
+### 1. `sdk/llm/<provider_name>_provider.py`
+
+```python
+"""LLM Provider implementation for <provider_name>."""
+from __future__ import annotations
+
+from sdk.llm import LLMProvider, LLMResponse, CompletionRequest
+
+
+class <ProviderName>Provider(LLMProvider):
+    """<ProviderName> LLM provider.
+
+    Implements the LLMProvider interface for <provider_name>.
+    """
+
+    TIER_MAP: dict[str, str] = {
+        "fast": "TODO-fast-model-id",
+        "balanced": "TODO-balanced-model-id",
+        "powerful": "TODO-powerful-model-id",
+    }
+
+    def __init__(self, api_key: str | None = None) -> None:
+        # TODO: Initialize provider SDK client
+        ...
+
+    async def complete(self, request: CompletionRequest) -> LLMResponse:
+        model = self.TIER_MAP[request.tier]
+        # TODO: Implement completion using provider SDK
+        ...
+
+    async def health_check(self) -> bool:
+        # TODO: Implement health check (lightweight API call)
+        ...
+
+    def cost_per_token(self, model: str) -> tuple[float, float]:
+        # TODO: Return (input_cost_per_token, output_cost_per_token)
+        ...
+```
+
+### 2. `tests/sdk/llm/test_<provider_name>_provider.py`
+
+Unit tests for the new provider — tests the LLMProvider interface contract.
+
+### 3. Update `sdk/llm/registry.py`
+
+Register the new provider in the provider registry.
+
+## Post-Creation Checklist
+- [ ] Fill in TIER_MAP with real model IDs
+- [ ] Implement complete(), health_check(), cost_per_token()
+- [ ] Add provider-specific environment variables to .env.example
+- [ ] Run: `pytest tests/sdk/llm/test_<provider_name>_provider.py -v`
+- [ ] Add provider to the documentation (10-API-CONTRACTS provider list response)
+```
+
+---
+
+### 4.8 `.claude/skills/new-migration.md` — Migration Scaffolding
 
 ```markdown
 ---

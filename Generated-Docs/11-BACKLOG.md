@@ -2932,6 +2932,131 @@ definition_of_done:
 
 ---
 
+### S-078: Implement LLM Provider Abstraction (sdk/llm/)
+
+```yaml
+id: S-078
+title: Implement LLM provider abstraction layer with pluggable providers
+feature: F-050
+sprint: 0
+story_points: 8
+layer: infrastructure
+interaction_ids: []
+mcp_tools: []
+dashboard_screens: []
+shared_service: ProviderService
+acceptance_criteria:
+  - Given the sdk/llm/ module
+    When a new LLMProvider implementation is registered
+    Then it conforms to the LLMProvider interface (complete, chat, stream methods)
+  - Given AnthropicProvider, OpenAIProvider, and OllamaProvider
+    When each is instantiated with valid credentials
+    Then each can complete a basic prompt and return a well-formed response
+  - Given BaseAgent
+    When it invokes an LLM call
+    Then it uses LLMProvider (no direct anthropic/openai/ollama import)
+  - Given an agent manifest with tier: fast|balanced|powerful
+    When the agent is invoked
+    Then the tier resolves to the correct model ID for the configured provider
+  - Given LLM_PROVIDER=anthropic in .env
+    When the platform starts
+    Then AnthropicProvider is the default provider
+  - Given cost calculation
+    When a provider-aware invocation completes
+    Then cost is calculated using the correct provider's pricing table
+depends_on: [S-007]
+definition_of_done:
+  - [ ] sdk/llm/__init__.py with LLMProvider Protocol
+  - [ ] sdk/llm/anthropic_provider.py — AnthropicProvider
+  - [ ] sdk/llm/openai_provider.py — OpenAIProvider
+  - [ ] sdk/llm/ollama_provider.py — OllamaProvider
+  - [ ] sdk/llm/registry.py — provider registry and tier-to-model resolution
+  - [ ] BaseAgent updated to use LLMProvider (no direct SDK imports)
+  - [ ] Agent manifests use tier (fast/balanced/powerful) not model IDs
+  - [ ] Unit tests for all three providers
+  - [ ] .env.example updated with LLM_PROVIDER variable
+```
+
+---
+
+### S-079: Provider Health Check Endpoint
+
+```yaml
+id: S-079
+title: REST endpoint for LLM provider health checks
+feature: F-050
+sprint: 4
+story_points: 3
+layer: rest
+interaction_ids: []
+mcp_tools: []
+dashboard_screens: [S-001]
+shared_service: ProviderService
+acceptance_criteria:
+  - Given GET /api/v1/system/providers
+    When called with valid auth
+    Then returns list of all configured providers with health status and tier mappings
+  - Given GET /api/v1/system/providers/{name}/health
+    When called with a valid provider name
+    Then returns detailed health info including latency, error rate, and rate limits
+  - Given GET /api/v1/system/providers/{name}/health
+    When called with an unknown provider name
+    Then returns 404 PROVIDER_NOT_FOUND
+  - Given the Fleet Health page (S-001)
+    When rendered
+    Then the LLM Provider Status sub-section displays data from these endpoints
+depends_on: [S-078, S-029]
+definition_of_done:
+  - [ ] GET /api/v1/system/providers endpoint implemented
+  - [ ] GET /api/v1/system/providers/{name}/health endpoint implemented
+  - [ ] ProviderService with list_providers() and check_health() methods
+  - [ ] Unit tests for both endpoints
+  - [ ] Dashboard S-001 updated to consume provider health data
+```
+
+---
+
+### S-080: Provider Column in cost_metrics for Per-Provider Cost Tracking
+
+```yaml
+id: S-080
+title: Add provider column to cost_metrics and agent_registry for per-provider cost tracking
+feature: F-014
+sprint: 1
+story_points: 2
+layer: infrastructure
+interaction_ids: [I-040]
+mcp_tools: [get_cost_report]
+dashboard_screens: [S-010]
+shared_service: CostService
+acceptance_criteria:
+  - Given cost_metrics table
+    When a cost record is inserted
+    Then the provider column stores which LLM provider was used (e.g., "anthropic", "openai")
+  - Given agent_registry table
+    When an agent is registered
+    Then the llm_provider column stores the agent's configured provider
+  - Given mcp_call_events table
+    When an MCP call is logged
+    Then the provider column records which provider handled the call
+  - Given the cost report endpoint (GET /api/v1/cost/report)
+    When called
+    Then the response includes a by_provider breakdown
+  - Given the idx_cost_provider index
+    When querying costs by provider
+    Then the query uses the index and returns results efficiently
+depends_on: [S-001, S-078]
+definition_of_done:
+  - [ ] Migration: ALTER cost_metrics ADD COLUMN provider VARCHAR(32) DEFAULT 'anthropic'
+  - [ ] Migration: ALTER agent_registry ADD COLUMN llm_provider VARCHAR(32) DEFAULT 'anthropic'
+  - [ ] Migration: ALTER mcp_call_events ADD COLUMN provider VARCHAR(32)
+  - [ ] Index: CREATE INDEX idx_cost_provider ON cost_metrics(provider, recorded_at DESC)
+  - [ ] CostService.get_report() updated with by_provider breakdown
+  - [ ] Unit tests for provider-aware cost aggregation
+```
+
+---
+
 ### S-077: Agent Golden + Adversarial Test Suite
 
 ```yaml

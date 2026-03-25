@@ -105,6 +105,7 @@ CREATE TABLE agent_registry (
     archetype       VARCHAR(64) NOT NULL
                     CHECK (archetype IN ('ci-gate', 'reviewer', 'ops-agent', 'discovery-agent', 'co-pilot', 'orchestrator', 'governance')),
     model           VARCHAR(64) NOT NULL DEFAULT 'claude-sonnet-4-6',
+    llm_provider    VARCHAR(32) NOT NULL DEFAULT 'anthropic',
     status          VARCHAR(16) NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'degraded', 'offline', 'canary')),
     active_version  VARCHAR(32) DEFAULT '1.0.0',
@@ -132,6 +133,7 @@ CREATE TABLE cost_metrics (
     input_tokens    INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
     output_tokens   INTEGER NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
     cost_usd        NUMERIC(10, 6) NOT NULL DEFAULT 0 CHECK (cost_usd >= 0),
+    provider        VARCHAR(32) NOT NULL DEFAULT 'anthropic',
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -403,6 +405,7 @@ CREATE TABLE mcp_call_events (
     error_message   TEXT,
     tokens_used     INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
     cost_usd        NUMERIC(10, 6) NOT NULL DEFAULT 0 CHECK (cost_usd >= 0),
+    provider        VARCHAR(32),
     called_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -443,6 +446,7 @@ For reference, the `agent_registry` table after migrations 001 + 009 has these c
 | `phase` | VARCHAR(32) | NOT NULL | — | Migration 001 |
 | `archetype` | VARCHAR(64) | NOT NULL | — | Migration 001 |
 | `model` | VARCHAR(64) | NOT NULL | `'claude-sonnet-4-6'` | Migration 001 |
+| `llm_provider` | VARCHAR(32) | NOT NULL | `'anthropic'` | Migration 001 |
 | `status` | VARCHAR(16) | NOT NULL | `'active'` | Migration 001 |
 | `active_version` | VARCHAR(32) | NULL | `'1.0.0'` | Migration 001 |
 | `canary_version` | VARCHAR(32) | NULL | NULL | Migration 009 |
@@ -561,6 +565,10 @@ CREATE INDEX idx_audit_session
 CREATE INDEX idx_cost_session
     ON cost_metrics(session_id);
 
+-- Cost metrics: by provider for per-provider cost reporting
+CREATE INDEX idx_cost_provider
+    ON cost_metrics(provider, recorded_at DESC);
+
 -- MCP calls: by project_id for project-scoped observability
 CREATE INDEX idx_mcp_calls_project
     ON mcp_call_events(project_id, called_at DESC)
@@ -592,8 +600,9 @@ CREATE INDEX idx_mcp_calls_project
 | 19 | `idx_audit_session` | audit_events | session_id, created_at DESC | B-tree | No | Session-scoped audit |
 | 20 | `idx_cost_session` | cost_metrics | session_id | B-tree | No | Per-invocation cost |
 | 21 | `idx_mcp_calls_project` | mcp_call_events | project_id, called_at DESC | B-tree | Yes (non-null) | Project MCP observability |
+| 22 | `idx_cost_provider` | cost_metrics | provider, recorded_at DESC | B-tree | No | Per-provider cost reporting |
 
-**Total: 21 indexes** (plus unique constraints and primary keys acting as implicit indexes).
+**Total: 22 indexes** (plus unique constraints and primary keys acting as implicit indexes).
 
 ---
 

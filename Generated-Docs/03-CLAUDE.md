@@ -22,13 +22,13 @@
 
 ## 2. Architecture
 
-- **Python 3.12, Claude Agent SDK** — all agents use `from claude_agent_sdk import query, ClaudeAgentOptions` and extend `sdk/base_agent.py::BaseAgent`.
+- **Python 3.12, LLM-agnostic provider layer** — all agents extend `sdk/base_agent.py::BaseAgent` which uses `sdk/llm/LLMProvider` for LLM calls. No agent imports provider SDKs directly. Provider selected via `LLM_PROVIDER` env var (supports `anthropic`, `openai`, `ollama`).
 - **3 MCP Servers** (agents-server :3100, governance-server :3101, knowledge-server :3102) — primary AI interface; stdio transport for Claude Desktop, SSE for programmatic access.
 - **aiohttp REST API** (:8080) — programmatic interface and dashboard backend; every MCP tool has a corresponding REST endpoint.
 - **Streamlit Dashboard** (:8501) — human operator interface; consumes REST API exclusively, never imports services directly.
 - **8 Shared Services** — THE business logic layer. MCP tool handlers and REST route handlers are thin wrappers that call these services. Business logic lives nowhere else.
 - **PostgreSQL** (:5432) — persistence with Row-Level Security (RLS) for multi-tenancy; all access via async `asyncpg` through the service layer.
-- **External integrations** — Claude API (Anthropic), Slack (notifications), PagerDuty (escalation).
+- **External integrations** — LLM providers (Anthropic, OpenAI, Ollama) via `sdk/llm/`, Slack (notifications), PagerDuty (escalation).
 - **SDK foundation** — BaseAgent, BaseHooks, ManifestLoader, SchemaValidator (complete) + 13 modules to build.
 
 ---
@@ -112,7 +112,14 @@ agentic-sdlc/
 │   └── session_service.py              # read, write, list, delete session context
 ├── sdk/                                # Agent SDK (foundation layer)
 │   ├── __init__.py
-│   ├── base_agent.py                   # COMPLETE — BaseAgent + BaseStatefulAgent
+│   ├── base_agent.py                   # COMPLETE — BaseAgent + BaseStatefulAgent (uses LLMProvider, not direct SDK imports)
+│   ├── llm/                            # LLM provider abstraction layer
+│   │   ├── __init__.py                 # Exports LLMProvider, create_provider
+│   │   ├── provider.py                 # Abstract LLMProvider interface (query, stream, count_tokens)
+│   │   ├── anthropic_provider.py       # Anthropic Claude implementation (Haiku/Sonnet/Opus)
+│   │   ├── openai_provider.py          # OpenAI GPT implementation (GPT-4o-mini/GPT-4o/GPT-4)
+│   │   ├── ollama_provider.py          # Ollama local models implementation (llama3/mistral/etc.)
+│   │   └── factory.py                  # Provider factory — create_provider(name) from LLM_PROVIDER env var
 │   ├── base_hooks.py                   # COMPLETE — audit, cost, PII hooks
 │   ├── manifest_loader.py              # COMPLETE — 4-layer resolution (agent->archetype->team->global)
 │   ├── schema_validator.py             # COMPLETE — JSON Schema 2020-12 validation
@@ -950,6 +957,49 @@ CREATE POLICY knowledge_read_policy ON knowledge_exceptions
 COMMIT;
 ```
 
+### Pattern 7: LLM Provider (Adding a New Provider)
+
+To add a new LLM provider (e.g., Google Gemini):
+
+```python
+# sdk/llm/gemini_provider.py
+from __future__ import annotations
+
+from sdk.llm.provider import LLMProvider, LLMResponse, ModelTier
+
+
+class GeminiProvider(LLMProvider):
+    """Google Gemini LLM provider."""
+
+    TIER_MAP = {
+        ModelTier.FAST: "gemini-1.5-flash",
+        ModelTier.BALANCED: "gemini-1.5-pro",
+        ModelTier.POWERFUL: "gemini-1.5-ultra",
+    }
+
+    def __init__(self) -> None:
+        # Initialize Gemini client from env (GOOGLE_API_KEY)
+        ...
+
+    async def query(self, prompt: str, *, tier: ModelTier, **kwargs) -> LLMResponse:
+        model = self.TIER_MAP[tier]
+        # Call Gemini API, return normalized LLMResponse
+        ...
+
+    def cost_per_token(self, tier: ModelTier) -> dict[str, float]:
+        # Return {"input": <price>, "output": <price>} per token
+        ...
+```
+
+Then register in `sdk/llm/factory.py`:
+
+```python
+# Add to PROVIDER_MAP in factory.py
+PROVIDER_MAP["gemini"] = "sdk.llm.gemini_provider:GeminiProvider"
+```
+
+Agents never change — they use `tier: fast|balanced|powerful` in their manifest, and the factory routes to the correct provider at runtime.
+
 ---
 
 ## 6. Key Reference Tables
@@ -1132,6 +1182,13 @@ ruff check .                                # Lint all files
 ruff format .                               # Format all files
 ruff check --fix .                          # Auto-fix linting issues
 mypy --strict services/ sdk/ api/ mcp-servers/   # Type checking (strict)
+
+# ============================================================
+# LLM PROVIDER SWITCHING
+# ============================================================
+LLM_PROVIDER=anthropic python -m agents.govern.G1-cost-tracker  # Use Anthropic (default)
+LLM_PROVIDER=openai python -m agents.govern.G1-cost-tracker     # Use OpenAI
+LLM_PROVIDER=ollama python -m agents.govern.G1-cost-tracker     # Use Ollama (free, local)
 
 # ============================================================
 # MCP DEVELOPMENT
@@ -1452,7 +1509,7 @@ These patterns are **strictly prohibited**. Claude Code and all contributors mus
 | F17 | Agent without at least 3 golden tests              | Every agent must have 3+ golden tests in `tests/golden/`                 |
 | F18 | Agent manifest that fails schema validation        | Must pass `python -m sdk.schema_validator <manifest.yaml>`               |
 | F19 | Agent that does not extend `BaseAgent`             | All agents use `from sdk.base_agent import BaseAgent` and extend it      |
-| F20 | Agent that does not use Claude Agent SDK properly  | All agents use `from claude_agent_sdk import query, ClaudeAgentOptions`  |
+| F20 | Agent that directly imports `anthropic`, `openai`, or any LLM provider SDK  | All agents use `from sdk.llm import LLMProvider` via BaseAgent — no direct provider SDK imports in agent code  |
 | F21 | Writing `agent.py` before `manifest.yaml`          | Build spec-first: update manifest.yaml + prompt.md BEFORE agent.py      |
 | F22 | Agent folder not named by agent ID                 | Folder name = agent ID: `G1-cost-tracker`, `OV-D1-scope-boundary-auditor` |
 
@@ -1475,7 +1532,7 @@ These 13 rules are non-negotiable. Every contributor — human or AI — must fo
 
 | #  | Rule                                                                                                    |
 |----|---------------------------------------------------------------------------------------------------------|
-| 1  | All agents use `from claude_agent_sdk import query, ClaudeAgentOptions`.                                |
+| 1  | All agents use `sdk.llm.LLMProvider` via BaseAgent for LLM calls. No direct imports of `anthropic`, `openai`, or other provider SDKs in agent code. |
 | 2  | All agents extend `sdk/base_agent.py::BaseAgent`.                                                       |
 | 3  | Every agent manifest has exactly 9 anatomy subsystems.                                                  |
 | 4  | Build spec-first: update `manifest.yaml` + `prompt.md` before writing `agent.py`.                      |

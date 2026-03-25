@@ -46,9 +46,11 @@ This architecture treats THREE interface layers as equal citizens. No interface 
               +----------+----------+
               |                     |
      +--------v-------+   +--------v--------+
-     |  PostgreSQL     |   |  Claude API     |
-     |  Database       |   |  (Anthropic)    |
-     +----------------+   +-----------------+
+     |  PostgreSQL     |   |  LLM Providers  |
+     |  Database       |   |  (Anthropic /   |
+     +----------------+   |   OpenAI /       |
+                          |   Ollama)        |
+                          +-----------------+
 ```
 
 **Key Insight:** MCP tool handlers and REST route handlers are thin adapters. They validate input, call a shared service method, and format the response for their protocol. Zero business logic lives in the interface layer.
@@ -79,10 +81,12 @@ This architecture treats THREE interface layers as equal citizens. No interface 
               |                  |     |     |                  |
    +----------v---+    +---------v-+  +v---------+   +---------v--+
    | <<External>> |    |<<External>|  |<<External|   |<<External>>|
-   | Claude API   |    | PostgreSQL|  | Slack    |   | PagerDuty  |
-   | (Anthropic)  |    | Database  |  | Webhooks |   | Alerts     |
-   | HTTPS/REST   |    | TCP/SQL   |  | HTTPS    |   | HTTPS      |
-   | LLM calls    |    | All state |  | Notify + |   | Incident   |
+   | LLM Providers|    | PostgreSQL|  | Slack    |   | PagerDuty  |
+   | (Anthropic / |    | Database  |  | Webhooks |   | Alerts     |
+   |  OpenAI /    |    | TCP/SQL   |  | HTTPS    |   | HTTPS      |
+   |  Ollama)     |    | All state |  | Notify + |   | Incident   |
+   | HTTPS/REST   |    |           |  | Approvals|   | Escalation |
+   | LLM calls    |    |           |  |          |   |            |
    +--------------+    +-----------+  | Approvals|   | Escalation |
                                       +----------+   +------------+
               |
@@ -117,7 +121,7 @@ This architecture treats THREE interface layers as equal citizens. No interface 
 
 | System | Protocol | Data Flow |
 |--------|----------|-----------|
-| Anthropic Claude API | HTTPS/REST | Outbound: prompts + context. Inbound: completions + token usage |
+| LLM Providers (Anthropic / OpenAI / Ollama) | HTTPS/REST (Anthropic, OpenAI) or HTTP localhost (Ollama) | Outbound: prompts + context. Inbound: completions + token usage. Provider selected via `LLM_PROVIDER` env var; routed through `sdk/llm/` abstraction layer |
 | PostgreSQL | TCP/SQL | Bidirectional: all persistent state (agents, runs, audit, cost, sessions) |
 | Slack | HTTPS webhooks | Outbound: approval notifications, budget alerts, fleet warnings |
 | PagerDuty | HTTPS | Outbound: critical incident escalation (fleet down, budget runaway) |
@@ -133,7 +137,8 @@ This architecture treats THREE interface layers as equal citizens. No interface 
 | 3 | **MCP Server: Knowledge** (`agentic-sdlc-knowledge`) | Python 3.12, Claude Agent SDK MCP | Exception search/create/promote, knowledge base queries | Process (stdio) or HTTP service | stdio or 8092 |
 | 4 | **REST API** | Python 3.12, aiohttp | HTTP endpoints for dashboard and external integrations; thin adapter over shared services | Single async process | 8080 |
 | 5 | **Streamlit Dashboard** | Python 3.12, Streamlit | Visual monitoring, approval workflows, compliance reports, fleet controls | Streamlit server | 8501 |
-| 6 | **Agent Runtime** | Python 3.12, Claude Agent SDK, asyncio | Execution environment for 48 agents across 7 SDLC phases; manages agent lifecycle and orchestration levels L0-L4 | In-process (spawned by services) | N/A |
+| 6 | **Agent Runtime** | Python 3.12, LLMProvider abstraction (`sdk/llm/`), asyncio | Execution environment for 48 agents across 7 SDLC phases; manages agent lifecycle and orchestration levels L0-L4. LLM-agnostic via `sdk/llm/` provider layer (Anthropic, OpenAI, Ollama) | In-process (spawned by services) | N/A |
+| 9 | **LLM Provider Layer** (`sdk/llm/`) | Python 3.12, Abstract `LLMProvider` interface | Routes LLM calls to configured provider. Components: `provider.py` (interface), `anthropic_provider.py`, `openai_provider.py`, `ollama_provider.py`, `factory.py` (instantiation). Provider selected via `LLM_PROVIDER` env var | In-process (library) | N/A |
 | 7 | **PostgreSQL Database** | PostgreSQL 16 | All persistent state: agent_registry, pipeline_runs, audit_events, cost_events, approval_events, session_store, knowledge_entries | Managed instance | 5432 |
 | 8 | **Background Workers** | Python 3.12, asyncio | Pipeline runner (DAG execution), cost aggregation (materialized view refresh), health check poller, knowledge promotion evaluator | Async tasks in event loop | N/A |
 
@@ -272,7 +277,7 @@ No business logic, validation beyond input parsing, or database access exists in
 |--------|-------------|----------|------------|
 | `get_fleet_health()` | Fleet-wide health summary (agent counts by status, cost, pipelines) | `check_fleet_health` | `GET /api/v1/health/fleet` |
 | `get_agent_health(agent_id)` | Individual agent health with diagnostics | `check_agent_health` | `GET /api/v1/health/agents/{agent_id}` |
-| `get_system_health()` | System-level health (DB, Claude API, workers) | -- | `GET /api/v1/health` |
+| `get_system_health()` | System-level health (DB, LLM providers, workers) | -- | `GET /api/v1/health` |
 
 ### 3.8 SessionService
 
@@ -552,6 +557,7 @@ Internal components within the Shared Service Layer and Agent Runtime:
 | 1 | **Language** | Python 3.12 | TypeScript, Go, Rust | Claude Agent SDK is Python-native; entire AI/ML ecosystem is Python; team expertise is Python | GIL limits CPU parallelism (mitigated by asyncio for I/O); runtime type safety weaker than Go/Rust |
 | 2 | **REST Framework** | aiohttp | FastAPI, Flask, Django REST | Native asyncio without ASGI adapter; lightweight; matches async-first service layer | Smaller ecosystem than FastAPI; no auto-generated OpenAPI docs (we generate manually); less middleware ecosystem |
 | 3 | **MCP SDK** | Claude Agent SDK (built-in MCP) | Custom MCP implementation, mcp-python | Official Anthropic SDK; maintained alongside Claude; tool/resource/prompt primitives built in | Tied to Anthropic's release cadence; fewer community extensions than standalone mcp-python |
+| 15 | **LLM Provider Abstraction** | Abstract `LLMProvider` interface (`sdk/llm/provider.py`) + provider implementations + factory | Direct SDK imports in agents, single-provider hardcoding | Agents are LLM-agnostic; provider switch requires only env var change; tier-based model selection (`fast`/`balanced`/`powerful`) decouples agent logic from model names; Ollama enables free local dev | Additional abstraction layer; provider-specific features (e.g., Claude tool_use, GPT function_calling) must be normalized; slight latency overhead from factory dispatch |
 | 4 | **MCP Transport** | stdio (dev) + streamable-http (prod) | SSE, WebSocket, gRPC | stdio is zero-config for Claude Code local dev; streamable-http is the MCP standard for networked deployment | stdio requires process-per-connection; streamable-http adds HTTP overhead vs raw TCP |
 | 5 | **Dashboard Framework** | Streamlit | Grafana, Retool, React SPA, Dash | Pure Python; rapid prototyping; built-in auth; native charts; team does not need to maintain JS/TS frontend code | Limited customization vs React SPA; polling-based (no WebSocket push); single-threaded per session; harder to build complex interactive UIs |
 | 6 | **Database** | PostgreSQL 16 | SQLite, MySQL, MongoDB, DynamoDB | JSONB for flexible audit records; RLS for multi-tenancy; materialized views for cost aggregation; ACID for budget enforcement | Operational overhead vs SQLite; requires managed instance; vertical scaling limits |
@@ -631,6 +637,8 @@ Dashboard Flow:
 
 **Health Checks:** Background worker polls all 48 agents every 60 seconds. Results written to `agent_health` table. Fleet health endpoint aggregates.
 
+**LLM Provider Selection:** The `sdk/llm/` layer manages provider routing. Configuration via `LLM_PROVIDER` env var (values: `anthropic`, `openai`, `ollama`; default: `anthropic`). Agent manifests use `tier: fast|balanced|powerful` mapped to provider-specific models (e.g., `fast` = Haiku on Anthropic, GPT-4o-mini on OpenAI, llama3 on Ollama). Optional `provider:` override in manifest allows per-agent provider pinning. Cost calculation is provider-aware: Anthropic and OpenAI use their respective token pricing; Ollama reports $0.00. Provider health is monitored alongside agent health — unhealthy providers trigger circuit breakers.
+
 ### 8.4 Error Handling and Propagation
 
 Services raise typed exceptions. Each interface layer maps them to protocol-appropriate responses:
@@ -654,8 +662,8 @@ Services raise typed exceptions. Each interface layer maps them to protocol-appr
 ### 9.1 MCP Path: Developer Triggers Pipeline
 
 ```
-Developer                MCP Server            Shared Service         Database          Claude API
-(Claude Code)            (agents)              Layer                  (PostgreSQL)      (Anthropic)
+Developer                MCP Server            Shared Service         Database          LLM Provider
+(Claude Code)            (agents)              Layer                  (PostgreSQL)      (via sdk/llm/)
     |                        |                      |                      |                 |
     |  trigger_pipeline      |                      |                      |                 |
     |  {project_id,          |                      |                      |                 |

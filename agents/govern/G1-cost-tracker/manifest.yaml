@@ -13,7 +13,15 @@ identity:
   tags: [cost, budget, governance, monitoring]
 
 foundation_model:
-  model: claude-haiku-4-5-20251001
+  # LLM-AGNOSTIC: Use tier instead of hardcoded model ID.
+  # The platform resolves the tier to a provider-specific model at runtime.
+  # Override with 'model' field only when a specific model is required.
+  tier: fast                          # fast | balanced | powerful
+  provider: null                      # null = use LLM_PROVIDER env var (default: anthropic)
+  # provider: anthropic               # Force Anthropic regardless of env
+  # provider: openai                  # Force OpenAI
+  # provider: ollama                  # Force local Ollama
+  # model: claude-haiku-4-5-20251001  # Override: use this exact model (bypasses tier)
   temperature: 0.0
   max_tokens: 4096
 

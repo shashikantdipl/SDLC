@@ -36,22 +36,24 @@ This document defines the meta-protocol governing how the 14 document-generating
 
 ### 2.1 Agent Inventory
 
-| Agent ID | Step | Document Produced | Session Read Keys | Session Write Key | Depends On (Agents) |
-|----------|------|-------------------|-------------------|-------------------|----------------------|
-| `D0-roadmap` | 1 | 00-ROADMAP.md | `raw_spec` | `roadmap_doc` | None |
-| `D1-prd` | 2 | 01-PRD.md | `raw_spec` | `prd_doc` | None |
-| `D2-arch` | 3 | 02-ARCH.md | `prd_doc` | `arch_doc` | D1-prd |
-| `D3-claude` | 4 | 03-CLAUDE.md | `roadmap_doc`, `arch_doc` | `claude_doc` | D0-roadmap, D2-arch |
-| `D4-quality` | 5 | 04-QUALITY.md | `prd_doc`, `arch_doc` | `quality_doc` | D1-prd, D2-arch |
-| `D5-features` | 6 | 05-FEATURE-CATALOG.md | `prd_doc`, `arch_doc` | `feature_catalog` | D1-prd, D2-arch |
-| `D6-interaction` | 7 | 06-INTERACTION-MAP.md | `prd_doc`, `arch_doc`, `feature_catalog`, `quality_doc` | `interaction_map` | D1-prd, D2-arch, D4-quality, D5-features |
-| `D7-mcp` | 8 | 07-MCP-TOOL-SPEC.md | `interaction_map`, `arch_doc`, `feature_catalog`, `quality_doc` | `mcp_tool_spec` | D2-arch, D4-quality, D5-features, D6-interaction |
-| `D8-design` | 9 | 08-DESIGN-SPEC.md | `interaction_map`, `prd_doc`, `quality_doc`, `feature_catalog` | `design_spec` | D1-prd, D4-quality, D5-features, D6-interaction |
-| `D9-data` | 10 | 09-DATA-MODEL.md | `arch_doc`, `feature_catalog`, `quality_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `data_model` | D2-arch, D4-quality, D5-features, D6-interaction, D7-mcp, D8-design |
-| `D10-api` | 11 | 10-API-CONTRACTS.md | `arch_doc`, `data_model`, `prd_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `api_contracts` | D1-prd, D2-arch, D6-interaction, D7-mcp, D8-design, D9-data |
-| `D11-backlog` | 12 | 11-BACKLOG.md | `feature_catalog`, `prd_doc`, `arch_doc`, `quality_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `backlog` | D1-prd, D2-arch, D4-quality, D5-features, D6-interaction, D7-mcp, D8-design |
-| `D12-enforce` | 13 | 12-ENFORCEMENT.md | `claude_doc`, `arch_doc` | `enforcement_rules` | D2-arch, D3-claude |
-| `D13-testing` | 14 | 13-TESTING.md | `arch_doc`, `quality_doc`, `data_model`, `claude_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `test_strategy` | D2-arch, D3-claude, D4-quality, D6-interaction, D7-mcp, D8-design, D9-data |
+| Agent ID | Step | Document Produced | Provider | Session Read Keys | Session Write Key | Depends On (Agents) |
+|----------|------|-------------------|----------|-------------------|-------------------|----------------------|
+| `D0-roadmap` | 1 | 00-ROADMAP.md | `anthropic` | `raw_spec` | `roadmap_doc` | None |
+| `D1-prd` | 2 | 01-PRD.md | `anthropic` | `raw_spec` | `prd_doc` | None |
+| `D2-arch` | 3 | 02-ARCH.md | `anthropic` | `prd_doc` | `arch_doc` | D1-prd |
+| `D3-claude` | 4 | 03-CLAUDE.md | `anthropic` | `roadmap_doc`, `arch_doc` | `claude_doc` | D0-roadmap, D2-arch |
+| `D4-quality` | 5 | 04-QUALITY.md | `anthropic` | `prd_doc`, `arch_doc` | `quality_doc` | D1-prd, D2-arch |
+| `D5-features` | 6 | 05-FEATURE-CATALOG.md | `anthropic` | `prd_doc`, `arch_doc` | `feature_catalog` | D1-prd, D2-arch |
+| `D6-interaction` | 7 | 06-INTERACTION-MAP.md | `anthropic` | `prd_doc`, `arch_doc`, `feature_catalog`, `quality_doc` | `interaction_map` | D1-prd, D2-arch, D4-quality, D5-features |
+| `D7-mcp` | 8 | 07-MCP-TOOL-SPEC.md | `anthropic` | `interaction_map`, `arch_doc`, `feature_catalog`, `quality_doc` | `mcp_tool_spec` | D2-arch, D4-quality, D5-features, D6-interaction |
+| `D8-design` | 9 | 08-DESIGN-SPEC.md | `anthropic` | `interaction_map`, `prd_doc`, `quality_doc`, `feature_catalog` | `design_spec` | D1-prd, D4-quality, D5-features, D6-interaction |
+| `D9-data` | 10 | 09-DATA-MODEL.md | `anthropic` | `arch_doc`, `feature_catalog`, `quality_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `data_model` | D2-arch, D4-quality, D5-features, D6-interaction, D7-mcp, D8-design |
+| `D10-api` | 11 | 10-API-CONTRACTS.md | `anthropic` | `arch_doc`, `data_model`, `prd_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `api_contracts` | D1-prd, D2-arch, D6-interaction, D7-mcp, D8-design, D9-data |
+| `D11-backlog` | 12 | 11-BACKLOG.md | `anthropic` | `feature_catalog`, `prd_doc`, `arch_doc`, `quality_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `backlog` | D1-prd, D2-arch, D4-quality, D5-features, D6-interaction, D7-mcp, D8-design |
+| `D12-enforce` | 13 | 12-ENFORCEMENT.md | `anthropic` | `claude_doc`, `arch_doc` | `enforcement_rules` | D2-arch, D3-claude |
+| `D13-testing` | 14 | 13-TESTING.md | `anthropic` | `arch_doc`, `quality_doc`, `data_model`, `claude_doc`, `mcp_tool_spec`, `design_spec`, `interaction_map` | `test_strategy` | D2-arch, D3-claude, D4-quality, D6-interaction, D7-mcp, D8-design, D9-data |
+
+> **LLM-Agnostic Note:** The `Provider` column shows the default provider. Each agent resolves its provider via `LLM_PROVIDER` env var and `sdk/llm/LLMProvider`. Agents declare a `tier` (fast/balanced/powerful) in their manifest, not a hardcoded model ID. The provider can be changed per-agent or globally without modifying agent code.
 
 ### 2.2 Session Key Definitions
 
@@ -399,6 +401,8 @@ Every agent invocation is triggered by a message envelope. The orchestrator buil
   },
   "output_key": "mcp_tool_spec",
   "config": {
+    "provider": "anthropic",
+    "tier": "balanced",
     "model": "claude-sonnet-4-6",
     "max_tokens": 16000,
     "temperature": 0.2,
@@ -438,6 +442,8 @@ Every agent invocation is triggered by a message envelope. The orchestrator buil
     "tokens_in": 12450,
     "tokens_out": 8200,
     "cost_usd": 0.85,
+    "provider": "anthropic",
+    "tier": "balanced",
     "model": "claude-sonnet-4-6"
   },
   "error": null
@@ -455,7 +461,9 @@ Every agent invocation is triggered by a message envelope. The orchestrator buil
 | `action` | string | Yes | One of: `generate`, `generate_response`, `validate`, `validate_response`. |
 | `inputs` | object | Yes (request) | Map of input key names to `session://` references. The orchestrator resolves these to actual values before invoking the agent. |
 | `output_key` | string | Yes | The session key where the agent's output will be stored. |
-| `config.model` | string | Yes | LLM model identifier. Default: `claude-sonnet-4-6`. |
+| `config.provider` | string | Yes | LLM provider name (e.g., `anthropic`, `openai`, `ollama`). Resolved from `LLM_PROVIDER` env var or agent-specific override. |
+| `config.tier` | string | Yes | Abstract model tier: `fast`, `balanced`, or `powerful`. Resolved to a concrete model ID by the provider. |
+| `config.model` | string | Yes | LLM model identifier (resolved from tier + provider). Default: `claude-sonnet-4-6`. |
 | `config.max_tokens` | integer | Yes | Maximum output tokens for the LLM call. |
 | `config.temperature` | float | Yes | LLM temperature setting. Recommended: 0.2 for specification generation. |
 | `config.cost_ceiling_usd` | float | Yes | Maximum cost for this single agent execution. If exceeded, the agent MUST abort. |
@@ -1051,7 +1059,9 @@ Every agent execution (including retries, skips, and failures) produces an audit
   "completed_at": "2026-03-24T14:30:45.200Z",
   "duration_ms": 44700,
   "cost_usd": 0.85,
+  "provider": "anthropic",
   "model": "claude-sonnet-4-6",
+  "tier": "balanced",
   "tokens_in": 12450,
   "tokens_out": 8200,
   "output_key": "mcp_tool_spec",
@@ -1088,6 +1098,7 @@ In addition to per-agent events, the orchestrator logs pipeline-level events:
   "cost_ceiling_usd": 25.00,
   "per_agent_ceiling_usd": 2.00,
   "max_retries": 2,
+  "provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "total_steps": 14,
   "total_layers": 8,

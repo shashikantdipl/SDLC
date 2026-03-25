@@ -1502,12 +1502,12 @@ Every feature in this catalog conforms to the following schema:
 }
 ```
 
-### F-052: Rate Limiting for Claude API Calls
+### F-052: Rate Limiting for LLM Provider API Calls
 
 ```json
 {
   "id": "F-052",
-  "name": "Rate Limiting for Claude API Calls",
+  "name": "Rate Limiting for LLM Provider API Calls",
   "description": "Enforce configurable rate limits on Claude API calls to prevent quota exhaustion and ensure fair usage across agents",
   "capability": "C10",
   "epic": "E-010",
@@ -1638,6 +1638,59 @@ Every feature in this catalog conforms to the following schema:
 }
 ```
 
+### F-057: LLM Provider Selection
+
+```json
+{
+  "id": "F-057",
+  "name": "LLM Provider Selection",
+  "description": "Configure which LLM provider an agent uses via manifest tier (fast/balanced/powerful) or LLM_PROVIDER env var. Supports Anthropic, OpenAI, and Ollama via sdk/llm/ abstraction.",
+  "capability": "C1",
+  "epic": "E-010",
+  "priority": "must",
+  "story_points": 8,
+  "mcp_server": "agents-server",
+  "dashboard_view": "Fleet Health page (provider status), Agent Detail panel (provider override)",
+  "shared_service": "HealthService",
+  "interfaces": ["mcp", "rest", "dashboard"],
+  "depends_on": ["F-011"],
+  "acceptance_criteria": [
+    "Agents use tier-based model selection (fast/balanced/powerful) instead of hardcoded model names",
+    "LLM_PROVIDER env var switches all agents to specified provider (anthropic, openai, ollama)",
+    "Per-agent provider: override in manifest.yaml overrides global LLM_PROVIDER",
+    "sdk/llm/factory.py creates correct provider instance from env or manifest config",
+    "Cost calculation is provider-aware (Anthropic pricing, OpenAI pricing, Ollama = $0.00)",
+    "Switching provider does not require any agent code changes"
+  ]
+}
+```
+
+### F-058: Provider Health Check
+
+```json
+{
+  "id": "F-058",
+  "name": "Provider Health Check",
+  "description": "Verify LLM provider is reachable and responding within acceptable latency. Reports provider status in fleet health.",
+  "capability": "C1",
+  "epic": "E-010",
+  "priority": "should",
+  "story_points": 3,
+  "mcp_server": "agents-server",
+  "dashboard_view": "Fleet Health page (provider status panel)",
+  "shared_service": "HealthService",
+  "interfaces": ["mcp", "rest", "dashboard"],
+  "depends_on": ["F-057"],
+  "acceptance_criteria": [
+    "Health check endpoint pings each configured LLM provider with a minimal prompt",
+    "Returns provider_name, healthy (bool), latency_ms, model_count, default_tier",
+    "Unhealthy provider triggers circuit breaker preventing agent invocations on that provider",
+    "Provider health is included in fleet health dashboard",
+    "Health check completes within 5 seconds per provider"
+  ]
+}
+```
+
 ---
 
 ## Summary Table
@@ -1695,18 +1748,20 @@ Every feature in this catalog conforms to the following schema:
 | F-049 | Adversarial Test Execution | should | E-009 | (service-only) | AgentService | 5 |
 | F-050 | Session Context Store | should | E-010 | (service-only) | SessionService | 3 |
 | F-051 | Multi-Project Namespace Isolation | must | E-010 | (service-only) | SessionService | 8 |
-| F-052 | Rate Limiting for Claude API Calls | must | E-010 | (service-only) | AgentService | 5 |
+| F-052 | Rate Limiting for LLM Provider API Calls | must | E-010 | (service-only) | AgentService | 5 |
 | F-053 | Database Migrations | must | E-010 | (service-only) | SessionService | 5 |
 | F-054 | Health Endpoint and Readiness Probe | must | E-010 | rest | HealthService | 2 |
 | F-055 | Structured Logging | should | E-010 | (cross-cutting) | HealthService | 3 |
 | F-056 | CI/CD Pipeline | could | E-010 | (cross-cutting) | HealthService | 8 |
+| F-057 | LLM Provider Selection | must | E-010 | mcp, rest, dashboard | HealthService | 8 |
+| F-058 | Provider Health Check | should | E-010 | mcp, rest, dashboard | HealthService | 3 |
 
 ---
 
 ## Statistics
 
 ### Total Features
-**56 features** across 10 epics
+**58 features** across 10 epics
 
 ### By Priority
 
@@ -1783,7 +1838,7 @@ All features exposed via MCP are also exposed via REST: **PASS**
 | C7: Knowledge Management | F-029, F-030, F-031, F-032, F-033 | 5 |
 | C8: Pipeline Resilience | F-004, F-006, F-007 | 3 |
 | C9: Agent Lifecycle | F-012, F-013 | 2 |
-| C10: Multi-Project Isolation | F-050, F-051, F-052, F-053, F-054, F-055, F-056 | 7 |
+| C10: Multi-Project Isolation | F-050, F-051, F-052, F-053, F-054, F-055, F-056, F-057, F-058 | 9 |
 | C11: MCP Server Exposure | F-034, F-035, F-036, F-037, F-038, F-039 | 6 |
 | C12: Dashboard / Operator UI | F-040, F-041, F-042, F-043, F-044, F-045 | 6 |
 

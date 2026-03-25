@@ -74,12 +74,15 @@ Full-Stack-First inverts the traditional test pyramid at the top. Cross-interfac
 | Cross-Interface | Journey tests (4 journeys) | 4 | Slow | Yes |
 | Cross-Interface | Data freshness (Q-052) | 5 | Medium | Yes |
 | Cross-Interface | Error code parity (Q-050) | 6 | Fast | No |
+| Provider | Provider portability (same agent on Anthropic + OpenAI) | 6 | Slow | No |
+| Provider | Provider failover (simulate provider failure, verify fallback) | 4 | Medium | No |
+| Provider | Provider unit tests (AnthropicProvider, OpenAIProvider, OllamaProvider) | 15 | Fast | No |
 | Agent | Golden path (48 agents x 3) | 144 | Slow | No |
 | Agent | Adversarial (48 agents x 1) | 48 | Slow | No |
 | Performance | MCP latency (Q-001, Q-002) | 3 | Slow | Yes |
 | Performance | REST latency (Q-004) | 3 | Slow | Yes |
 | Performance | Dashboard load (Q-005, Q-006) | 5 | Slow | Yes |
-| **Total** | | **~883** | | |
+| **Total** | | **~908** | | |
 
 ---
 
@@ -2553,6 +2556,129 @@ def validate_agent_output(output: str, rubric: dict) -> list[str]:
 
 ---
 
+## 10A. LLM Provider Tests
+
+### 10A.1 Provider Portability Tests
+
+These tests verify that the same agent produces structurally equivalent output regardless of the underlying LLM provider. The output schema and format must match; content quality may vary.
+
+```python
+# tests/providers/test_portability.py
+
+import pytest
+from sdk.llm import LLMProvider
+from sdk.llm.anthropic_provider import AnthropicProvider
+from sdk.llm.openai_provider import OpenAIProvider
+
+
+@pytest.fixture(params=["anthropic", "openai"])
+def provider(request) -> LLMProvider:
+    """Parametrize across providers to run same test on each."""
+    if request.param == "anthropic":
+        return AnthropicProvider()
+    return OpenAIProvider()
+
+
+@pytest.mark.slow
+class TestProviderPortability:
+    """Run the same agent on different providers, verify output schema matches."""
+
+    async def test_cost_tracker_output_schema(self, provider: LLMProvider):
+        """G1-cost-tracker must return valid CostReport shape on any provider."""
+        agent = create_agent("G1-cost-tracker", llm=provider)
+        result = await agent.execute(golden_input("G1-cost-tracker", "TC-001"))
+        assert_schema_valid(result, "CostReport")
+
+    async def test_prd_writer_output_schema(self, provider: LLMProvider):
+        """P1-prd-writer must return valid markdown with required sections."""
+        agent = create_agent("P1-prd-writer", llm=provider)
+        result = await agent.execute(golden_input("P1-prd-writer", "TC-001"))
+        assert "## Personas" in result.content
+        assert "## User Journeys" in result.content
+```
+
+### 10A.2 Provider Failover Tests
+
+These tests simulate provider failures and verify the platform falls back gracefully.
+
+```python
+# tests/providers/test_failover.py
+
+import pytest
+from unittest.mock import AsyncMock, patch
+
+
+@pytest.mark.medium
+class TestProviderFailover:
+    """Simulate provider failure, verify fallback behavior."""
+
+    async def test_fallback_on_provider_timeout(self):
+        """When primary provider times out, agent should raise ProviderError."""
+        provider = create_failing_provider(error="timeout")
+        agent = create_agent("G1-cost-tracker", llm=provider)
+        with pytest.raises(ProviderError, match="timeout"):
+            await agent.execute(golden_input("G1-cost-tracker", "TC-001"))
+
+    async def test_fallback_on_rate_limit(self):
+        """When primary provider returns 429, ProviderError includes retry_after."""
+        provider = create_failing_provider(error="rate_limit", retry_after=30)
+        agent = create_agent("G1-cost-tracker", llm=provider)
+        with pytest.raises(ProviderError) as exc_info:
+            await agent.execute(golden_input("G1-cost-tracker", "TC-001"))
+        assert exc_info.value.retry_after == 30
+
+    async def test_cost_recorded_on_partial_failure(self):
+        """If provider fails mid-stream, partial token cost is still recorded."""
+        provider = create_failing_provider(error="mid_stream", tokens_before_fail=500)
+        agent = create_agent("G1-cost-tracker", llm=provider)
+        with pytest.raises(ProviderError):
+            await agent.execute(golden_input("G1-cost-tracker", "TC-001"))
+        assert agent.last_cost_usd > 0  # partial cost recorded
+
+    async def test_health_check_detects_down_provider(self):
+        """ProviderService.check_health() returns healthy=false for down provider."""
+        with patch("sdk.llm.anthropic_provider.AnthropicProvider.health_check",
+                    new_callable=AsyncMock, return_value=False):
+            result = await provider_service.check_health("anthropic")
+            assert result.healthy is False
+```
+
+### 10A.3 Provider-Specific Unit Tests
+
+Each provider implementation has its own unit test file verifying the `LLMProvider` interface contract.
+
+```python
+# tests/sdk/llm/test_anthropic_provider.py
+# tests/sdk/llm/test_openai_provider.py
+# tests/sdk/llm/test_ollama_provider.py
+
+@pytest.mark.unit
+class TestAnthropicProvider:
+    """Unit tests for AnthropicProvider."""
+
+    async def test_tier_resolution(self):
+        """Tier 'balanced' resolves to 'claude-sonnet-4-6'."""
+        provider = AnthropicProvider()
+        assert provider.resolve_model("balanced") == "claude-sonnet-4-6"
+        assert provider.resolve_model("fast") == "claude-haiku-3"
+        assert provider.resolve_model("powerful") == "claude-opus-4-6"
+
+    async def test_cost_calculation(self):
+        """Cost per token returns correct Anthropic pricing."""
+        provider = AnthropicProvider()
+        input_cost, output_cost = provider.cost_per_token("claude-sonnet-4-6")
+        assert input_cost > 0
+        assert output_cost > input_cost  # output tokens cost more
+
+    async def test_health_check(self):
+        """Health check makes a lightweight API call."""
+        provider = AnthropicProvider()
+        result = await provider.health_check()
+        assert isinstance(result, bool)
+```
+
+---
+
 ## 11. Performance Tests
 
 ### 11.1 NFR Mapping
@@ -2933,6 +3059,12 @@ jobs:
             --cov=src/services --cov-branch \
             --cov-fail-under=90 \
             --cov-report=xml:coverage-services.xml
+      - name: Provider unit tests
+        run: |
+          pytest tests/sdk/llm/ -m "unit" -v \
+            --cov=src/sdk/llm --cov-branch \
+            --cov-fail-under=85 \
+            --cov-report=xml:coverage-providers.xml
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:

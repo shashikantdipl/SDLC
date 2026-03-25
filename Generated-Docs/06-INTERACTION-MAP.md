@@ -94,13 +94,15 @@ In Full-Stack-First, MCP tools and Dashboard screens are designed IN PARALLEL. W
 | I-062 | Promote exception | Promote exception from client to stack to universal tier | `promote_exception` | knowledge-server | -- (MCP/REST only) | `KnowledgeService.promote()` | `KnowledgeException` | F-031 |
 | I-063 | List exceptions by tier | View all exceptions filtered by tier level | `list_exceptions` | knowledge-server | -- (MCP/REST only; future Dashboard) | `KnowledgeService.list_by_tier()` | `KnowledgeException[]` | F-032, F-033 |
 
-### I-080 to I-082: System and Health Operations
+### I-080 to I-084: System and Health Operations
 
 | ID | Interaction | Description | MCP Tool | MCP Server | Dashboard Screen | Shared Service | Data Shape(s) | Features |
 |------|-------------|-------------|----------|------------|-----------------|----------------|---------------|----------|
 | I-080 | Get fleet health | Overall platform health: agent counts, circuit breakers, avg latency | `get_fleet_health` | agents-server | Health Overview (Fleet Health page) | `HealthService.get_fleet_health()` | `FleetHealth` | F-040, F-041 |
 | I-081 | Get MCP server status | MCP server uptime, tool count, and connection metrics | `get_mcp_status` | agents-server | MCP Panel (Fleet Health page) | `HealthService.get_mcp_status()` | `McpServerStatus[]` | F-045, F-034 |
 | I-082 | List recent MCP calls | Recent tool invocations by AI clients for observability | `list_recent_mcp_calls` | governance-server | MCP Call Feed (Fleet Health page) | `AuditService.list_mcp_calls()` | `McpCallEvent[]` | F-045, F-022 |
+| I-083 | Check LLM provider status | Verify LLM provider health: reachability, latency, model availability | `check_provider_health` | agents-server | Fleet Health page (provider status panel) | `HealthService.check_provider_health()` | `ProviderStatus` | F-057, F-058 |
+| I-084 | Switch agent provider | Change an agent's LLM provider override at runtime | `set_agent_provider` | agents-server | Agent Detail panel (provider selector) | `AgentService.set_provider()` | `AgentDetail` | F-057 |
 
 ### Interaction Count Summary
 
@@ -110,8 +112,8 @@ In Full-Stack-First, MCP tools and Dashboard screens are designed IN PARALLEL. W
 | Agent Operations | I-020 to I-027 | 8 |
 | Governance (Cost, Audit, Approval) | I-040 to I-049 | 10 |
 | Knowledge Operations | I-060 to I-063 | 4 |
-| System / Health | I-080 to I-082 | 3 |
-| **Total** | | **34** |
+| System / Health | I-080 to I-084 | 5 |
+| **Total** | | **36** |
 
 ### Feature Coverage Cross-Reference
 
@@ -128,7 +130,7 @@ Every feature (F-001 to F-056) from FEATURE-CATALOG must be traceable to at leas
 | F-034 to F-039 | E-007: MCP Server Infrastructure | I-081 (server status); F-034 to F-039 are infrastructure capabilities consumed by all MCP interactions |
 | F-040 to F-045 | E-008: Dashboard / Operator UI | I-080, I-081, I-082 (dashboard pages); F-040 to F-044 are rendered by Dashboard screens mapped in interaction inventory |
 | F-046 to F-049 | E-009: Quality & Testing | Cross-cutting; quality metrics surface through I-006 (document quality_score), I-027 (maturity confidence) |
-| F-050 to F-056 | E-010: Platform Foundation | Cross-cutting; session management (F-050), config (F-051), logging (F-052), secrets (F-053), rate limiting (F-054), feature flags (F-055), health checks (F-056) are infrastructure consumed by all services |
+| F-050 to F-058 | E-010: Platform Foundation | Cross-cutting; session management (F-050), config (F-051), logging (F-052), secrets (F-053), rate limiting (F-054), feature flags (F-055), health checks (F-056), LLM provider selection (F-057, I-083, I-084), provider health (F-058, I-083) are infrastructure consumed by all services |
 
 ---
 
@@ -631,6 +633,26 @@ interface McpCallEvent {
 **Consumed by:** MCP Call Feed (Fleet Health page), MCP `list_recent_mcp_calls` response
 **Service methods:** `AuditService.list_mcp_calls()`
 
+### 2.23 ProviderStatus
+
+```typescript
+interface ProviderStatus {
+  provider_name: string;         // "anthropic" | "openai" | "ollama"
+  healthy: boolean;
+  model_count: number;           // number of models available at this provider
+  default_tier: string;          // "fast" | "balanced" | "powerful"
+  latency_ms: number;            // last health check round-trip latency
+  tier_map: Record<string, string>;  // e.g., { "fast": "claude-haiku", "balanced": "claude-sonnet", "powerful": "claude-opus" }
+  cost_per_1k_input: number;     // USD per 1K input tokens (0.00 for Ollama)
+  cost_per_1k_output: number;    // USD per 1K output tokens (0.00 for Ollama)
+  last_checked_at: string;       // ISO 8601
+}
+```
+
+**Produced by:** I-083 (check LLM provider status)
+**Consumed by:** Fleet Health page (provider status panel), MCP `check_provider_health` response
+**Service methods:** `HealthService.check_provider_health()`
+
 ---
 
 ## 3. Cross-Interface Journeys
@@ -812,6 +834,8 @@ This matrix ensures compliance with Q-049 (MCP-REST parity) and Q-051 (data shap
 | I-080 | Get fleet health | Yes | Yes | Yes | -- |
 | I-081 | Get MCP server status | Yes | Yes | Yes | -- |
 | I-082 | List recent MCP calls | Yes | Yes | Yes | -- |
+| I-083 | Check LLM provider status | Yes | Yes | Yes | -- |
+| I-084 | Switch agent provider | Yes | Yes | Yes | -- |
 
 ### Parity Summary
 
@@ -857,7 +881,7 @@ I-{NNN}
 | Agent Operations | I-020 to I-039 | 20 | 8 | 12 |
 | Governance (Cost, Audit, Approval) | I-040 to I-059 | 20 | 10 | 10 |
 | Knowledge Operations | I-060 to I-079 | 20 | 4 | 16 |
-| System / Health | I-080 to I-099 | 20 | 3 | 17 |
+| System / Health | I-080 to I-099 | 20 | 5 | 15 |
 
 ### 6.3 Scope
 
@@ -958,6 +982,8 @@ agents-server tools (18):
   get_agent_maturity      (I-027)
   get_fleet_health        (I-080)
   get_mcp_status          (I-081)
+  check_provider_health   (I-083)
+  set_agent_provider      (I-084)
 
 governance-server tools (11):
   get_cost_report         (I-040)
@@ -995,6 +1021,7 @@ Fleet Health page:
   Canary Slider          -> I-026 (AgentVersion)
   MCP Panel              -> I-081 (McpServerStatus[])
   MCP Call Feed          -> I-082 (McpCallEvent[])
+  Provider Status Panel  -> I-083 (ProviderStatus)
 
 Cost Monitor page:
   Cost Charts            -> I-040 (CostReport)

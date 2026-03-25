@@ -244,7 +244,7 @@ Software delivery teams spanning platform engineering, delivery management, qual
 
 ### C1: Agent Orchestration
 
-The platform orchestrates 48 specialized AI agents organized across 7 SDLC phases: GOVERN (cost, audit, lifecycle, orchestration), DESIGN (requirements through test strategy), BUILD (code generation, review, security), TEST (static analysis, test running, coverage), DEPLOY (checklist, IaC, release, rollback), OPERATE (incident triage, runbook, SLA, alerts), and OVERSIGHT (structural and design audits). Orchestration operates at 5 hierarchical levels: L0 agent loop (single agent execution via Claude Agent SDK `query()`), L1 subagent spawn (nested delegation), L2 pipeline (sequential agent chain with gates), L3 team (complex DAG workflows with parallel and conditional branches), and L4 fleet (fleet-wide scaling, health management, and resource allocation). All levels share a common typed message envelope format for inter-agent communication, enabling traceability from any individual agent invocation up to the fleet level.
+The platform orchestrates 48 specialized AI agents organized across 7 SDLC phases: GOVERN (cost, audit, lifecycle, orchestration), DESIGN (requirements through test strategy), BUILD (code generation, review, security), TEST (static analysis, test running, coverage), DEPLOY (checklist, IaC, release, rollback), OPERATE (incident triage, runbook, SLA, alerts), and OVERSIGHT (structural and design audits). Orchestration operates at 5 hierarchical levels: L0 agent loop (single agent execution via LLMProvider abstraction), L1 subagent spawn (nested delegation), L2 pipeline (sequential agent chain with gates), L3 team (complex DAG workflows with parallel and conditional branches), and L4 fleet (fleet-wide scaling, health management, and resource allocation). All levels share a common typed message envelope format for inter-agent communication, enabling traceability from any individual agent invocation up to the fleet level. All agents use tier-based model selection (`fast`/`balanced`/`powerful`) mapped to any LLM provider via `sdk/llm/` — no agent contains hardcoded model names or direct provider SDK imports.
 
 ### C2: 12-Document Generation Pipeline
 
@@ -294,13 +294,13 @@ A Streamlit-based dashboard provides visual monitoring, control, and reporting f
 
 ## 6. Explicit Out of Scope
 
-1. **Multi-LLM provider support** -- The platform uses Anthropic Claude models exclusively (Haiku, Sonnet, Opus). Supporting additional LLM providers (OpenAI GPT, Google Gemini, Meta Llama, Mistral) would require a model abstraction layer that adds complexity without benefit for an internal tool purpose-built on the Claude Agent SDK.
+1. **Multi-LLM provider support** -- **IN SCOPE.** The platform is LLM-agnostic via `sdk/llm/` provider abstraction (supports Anthropic, OpenAI, and Ollama). All agents use tier-based model selection (`fast`/`balanced`/`powerful`) mapped to any LLM provider. The default provider is Anthropic Claude, but operators can switch providers via `LLM_PROVIDER` env var or per-agent manifest `provider:` override. Provider factory in `sdk/llm/factory.py` instantiates the correct implementation at runtime.
 
 2. **Mobile application** -- No native iOS or Android application will be developed. The Streamlit dashboard is designed for desktop workstation use. All target personas operate from desktop environments during their working hours.
 
 3. **Third-party project management tool integration** -- No integration with Jira, Linear, Asana, Monday, or other PM tools. The backlog generator (D8) produces standalone task lists in structured format. Export adapters to PM tools may be considered in a future phase but are explicitly excluded from v1.0.
 
-4. **Self-hosted or local LLM inference** -- All LLM inference uses Anthropic's hosted Claude API. Running local models, self-hosted inference servers, or on-premises LLM deployments is out of scope. This creates a hard dependency on Anthropic API availability but eliminates infrastructure complexity.
+4. **Self-hosted or local LLM inference** -- **IN SCOPE (via Ollama).** The `sdk/llm/ollama_provider.py` supports local model inference through Ollama. This enables cost-free local development iterations and air-gapped deployments. Ollama cost tracking reports $0.00 per invocation.
 
 5. **Real-time collaborative editing** -- Generated documents are produced by AI agents and reviewed by individual humans. Multi-user simultaneous editing (Google Docs-style collaboration) of agent outputs is not supported. Documents are versioned and individually reviewed, not collaboratively edited.
 

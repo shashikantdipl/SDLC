@@ -179,6 +179,7 @@ The diagram below shows all 14 document-generation agents (D0-D13) connected by 
           |                                                |
           |    14 documents generated. Session sealed.     |
           |    Final cost recorded. Audit trail closed.    |
+          |    Provider: LLM_PROVIDER (default: anthropic) |
           |                                                |
           +-----------------------------------------------+
 ```
@@ -861,6 +862,40 @@ Both MCP and REST return the same `PipelineRun` shape. The developer could also 
        D0   D1   D2   D3   D4   D5   D6   D7   D8   D9  D10  D11  D12  D13
 ```
 
+### LLM Provider Routing
+
+Each agent invocation follows this routing path through the `sdk/llm/` abstraction:
+
+```
+  Agent (D0..D13)
+       |
+       | tier: fast|balanced|powerful
+       v
+  +-------------------+
+  |   BaseAgent       |
+  |  self.llm.complete()
+  +--------+----------+
+           |
+           v
+  +-------------------+
+  |   LLMProvider     |  <-- sdk/llm/ interface
+  |  (abstract)       |
+  +--------+----------+
+           |
+     +-----+-----+----------+
+     |           |           |
+     v           v           v
+  Anthropic   OpenAI     Ollama
+  Provider    Provider   Provider
+     |           |           |
+     v           v           v
+  claude-*    gpt-4o-*   llama-*
+```
+
+**Provider resolution:** `LLM_PROVIDER` env var selects the default. Each agent can override via `llm_provider` in `agent_registry`. The tier (fast/balanced/powerful) is resolved to a concrete model ID by the active provider's `TIER_MAP`.
+
+**Cost flow is provider-aware:** Each provider implementation returns `(input_cost, output_cost)` per-token pricing. `CostService.record()` stores the `provider` column in `cost_metrics`, enabling per-provider cost reporting via `GET /api/v1/cost/report` (see `by_provider` breakdown).
+
 ### Cost Governance Triggers
 
 | Threshold | % of Budget | Action |
@@ -903,6 +938,8 @@ Both MCP and REST return the same `PipelineRun` shape. The developer could also 
 | Critical Path: D1->D2->D4->D6->D7->D9->D10->D11 (8 steps)           |
 | Wall Clock:  ~25 min (parallel) / ~40 min (sequential)                |
 | Cost:        ~$20.80 base + ~$2.10 retry buffer = ~$22.90             |
+| Provider:    LLM_PROVIDER env var (default: anthropic)                 |
+| Tiers:       fast / balanced / powerful (resolved per provider)        |
 | Budget:      $25.00 hard ceiling                                       |
 | Max Retries: 3 per agent                                               |
 | Most-Read:   arch_doc (10 downstream readers)                          |

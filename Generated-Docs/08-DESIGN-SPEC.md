@@ -196,6 +196,15 @@ Every screen defines four states: loading (skeleton), empty (no data), error (AP
 | Pending approvals | `pending_approvals` | MetricCard | Clickable, navigates to Approval Queue page; red badge if > 0 |
 | Last updated | `last_updated_at` | Timestamp | Shows "Xs ago" format; amber if > 60s stale |
 
+**LLM Provider Status (sub-section):**
+
+| Element | Field | Component | Notes |
+|---------|-------|-----------|-------|
+| Active provider | `llm_provider` | MetricCard | Shows current LLM_PROVIDER (e.g., "anthropic", "openai", "ollama") |
+| Provider health | `provider_healthy` | StatusBadge | Green if provider API reachable, red if down |
+| Provider distribution | `agents_by_provider` | Inline list | Count of agents per provider (e.g., "anthropic: 44, openai: 4") |
+| Fallback status | `fallback_active` | StatusBadge | Amber if any agent is running on fallback provider |
+
 **States:**
 - **Loading:** Six skeleton MetricCard placeholders with pulsing animation
 - **Empty:** N/A (fleet health always returns data; zero agents = all counts zero)
@@ -1171,6 +1180,7 @@ Derived from `McpServerStatus[].active_connections` and MCP call metadata.
 | Duration | `duration_ms` | Text | "Xms"; amber if > 500ms, red if > 2s |
 | Status | `status` | StatusBadge | success=green, error=red, timeout=amber |
 | Cost | `cost_usd` | Text | "$X.XX" |
+| Provider | `provider` | Text | LLM provider that handled the call (e.g., "anthropic", "openai", "ollama") |
 | Error | `error_message` | Tooltip | Only shown on hover for error/timeout status |
 
 **Layout:** Scrollable feed of the 20 most recent MCP calls, newest at top. New calls appear at top with a brief highlight animation.

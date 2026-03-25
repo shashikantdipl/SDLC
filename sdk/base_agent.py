@@ -1,17 +1,24 @@
 """BaseAgent — Foundation class for all 48 SDLC agents.
 
+LLM-AGNOSTIC: Uses LLMProvider interface, NOT any specific LLM SDK.
+The provider is resolved from manifest.yaml or environment config.
+
 Every agent extends this class. It provides:
 - Manifest loading (9-subsystem anatomy from YAML)
-- Claude API invocation via Anthropic SDK
+- LLM invocation via LLMProvider (Anthropic, OpenAI, Ollama, or any custom)
 - Pre/post hooks (audit, cost, PII detection)
 - Budget enforcement (per-invocation ceiling)
-- Dry-run mode (validate without calling API)
+- Dry-run mode (validate without calling LLM)
 - Structured output via output schema
 
 Usage:
-    class G1CostTracker(BaseAgent):
-        async def run(self, input_data: dict) -> dict:
-            return await self.invoke(input_data)
+    agent = BaseAgent(agent_dir=Path("agents/govern/G1-cost-tracker"))
+    result = await agent.invoke({"scope": "project", ...})
+
+    # With explicit provider:
+    from sdk.llm import create_provider
+    provider = create_provider("openai")
+    agent = BaseAgent(agent_dir=..., provider=provider)
 """
 from __future__ import annotations
 
@@ -25,21 +32,22 @@ from uuid import UUID, uuid4
 from typing import Any
 
 import yaml
-from anthropic import AsyncAnthropic
 
 from sdk.base_hooks import BaseHooks
+from sdk.llm.provider import LLMProvider, LLMResponse, ModelTier
 
 
 class BaseAgent:
     """Base class for all SDLC agents.
 
-    Loads manifest.yaml, enforces budget, calls Claude API, runs hooks.
+    LLM-agnostic: accepts any LLMProvider implementation.
+    If no provider is given, creates one from manifest or environment.
     """
 
     def __init__(
         self,
         agent_dir: Path | str,
-        api_key: str | None = None,
+        provider: LLMProvider | None = None,
         hooks: BaseHooks | None = None,
         dry_run: bool = False,
     ) -> None:
@@ -66,9 +74,11 @@ class BaseAgent:
         self.version = identity.get("version", "1.0.0")
         self.phase = identity.get("phase", "unknown")
 
-        # Extract model config
+        # Extract model config (LLM-agnostic)
         fm = self.manifest.get("foundation_model", {})
-        self.model = fm.get("model", "claude-haiku-4-5-20251001")
+        self._model_tier = ModelTier(fm.get("tier", "fast"))
+        self._model_override = fm.get("model", None)  # Provider-specific override
+        self._preferred_provider = fm.get("provider", None)  # e.g., "anthropic", "openai"
         self.temperature = fm.get("temperature", 0.2)
         self.max_tokens = fm.get("max_tokens", 8192)
 
@@ -83,9 +93,39 @@ class BaseAgent:
         output = self.manifest.get("output", {})
         self.output_key = output.get("writes_to", None)
 
-        # Anthropic client
-        key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        self._client = AsyncAnthropic(api_key=key) if key else None
+        # LLM Provider (resolve lazily if not provided)
+        self._provider = provider
+        self._resolved_model: str | None = None
+
+    @property
+    def provider(self) -> LLMProvider:
+        """Get or create the LLM provider."""
+        if self._provider is None:
+            self._provider = self._create_default_provider()
+        return self._provider
+
+    @property
+    def model(self) -> str:
+        """Get the resolved model ID for the current provider."""
+        if self._resolved_model is None:
+            if self._model_override:
+                self._resolved_model = self._model_override
+            else:
+                self._resolved_model = self.provider.resolve_model(self._model_tier)
+        return self._resolved_model
+
+    @property
+    def provider_name(self) -> str:
+        """Name of the active LLM provider."""
+        return self.provider.provider_name
+
+    def _create_default_provider(self) -> LLMProvider:
+        """Create provider from manifest preference or environment."""
+        from sdk.llm.factory import create_provider, get_default_provider
+
+        if self._preferred_provider:
+            return create_provider(self._preferred_provider)
+        return get_default_provider()
 
     async def invoke(
         self,
@@ -97,7 +137,7 @@ class BaseAgent:
 
         Flow:
         1. Pre-hooks (audit start, budget check)
-        2. Call Claude API (or dry-run)
+        2. Call LLM via provider (or dry-run)
         3. Post-hooks (audit complete, cost recording, PII scan)
         4. Return structured result
         """
@@ -114,38 +154,38 @@ class BaseAgent:
             input_data=input_data,
         )
 
-        # Build messages
-        messages = self._build_messages(input_data)
+        # Build user message
+        user_message = json.dumps(input_data, indent=2, default=str)
 
-        # Invoke
+        # Invoke LLM
         if self.dry_run:
             output_text = json.dumps({
                 "dry_run": True,
                 "agent_id": self.agent_id,
                 "model": self.model,
+                "provider": self.provider_name,
+                "model_tier": self._model_tier.value,
                 "input_keys": list(input_data.keys()),
                 "would_write_to": self.output_key,
             })
             input_tokens = 0
             output_tokens = 0
             cost_usd = Decimal("0.00")
-        elif self._client is None:
-            raise RuntimeError(
-                f"Cannot invoke {self.agent_id}: no API key. "
-                "Set ANTHROPIC_API_KEY env var or pass api_key to constructor."
-            )
+            provider_name = self.provider_name
         else:
-            response = await self._client.messages.create(
+            # Call LLM through the provider interface
+            llm_response: LLMResponse = await self.provider.generate(
+                system_prompt=self.system_prompt,
+                user_message=user_message,
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                system=self.system_prompt,
-                messages=messages,
             )
-            output_text = response.content[0].text if response.content else ""
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-            cost_usd = self._estimate_cost(input_tokens, output_tokens)
+            output_text = llm_response.content
+            input_tokens = llm_response.input_tokens
+            output_tokens = llm_response.output_tokens
+            cost_usd = Decimal(str(llm_response.cost_usd)).quantize(Decimal("0.000001"))
+            provider_name = llm_response.provider
 
         duration_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -171,28 +211,10 @@ class BaseAgent:
             "output_tokens": output_tokens,
             "duration_ms": duration_ms,
             "model": self.model,
+            "provider": provider_name,
+            "model_tier": self._model_tier.value,
             "dry_run": self.dry_run,
         }
-
-    def _build_messages(self, input_data: dict[str, Any]) -> list[dict[str, str]]:
-        """Build Claude API messages from input data."""
-        user_content = json.dumps(input_data, indent=2, default=str)
-        return [{"role": "user", "content": user_content}]
-
-    def _estimate_cost(self, input_tokens: int, output_tokens: int) -> Decimal:
-        """Estimate cost based on model pricing."""
-        # Approximate pricing per 1M tokens (as of 2026)
-        pricing = {
-            "claude-haiku-4-5-20251001": {"input": Decimal("0.80"), "output": Decimal("4.00")},
-            "claude-sonnet-4-6": {"input": Decimal("3.00"), "output": Decimal("15.00")},
-            "claude-opus-4-6": {"input": Decimal("15.00"), "output": Decimal("75.00")},
-        }
-        model_price = pricing.get(self.model, pricing["claude-sonnet-4-6"])
-        cost = (
-            Decimal(input_tokens) * model_price["input"] / Decimal("1000000")
-            + Decimal(output_tokens) * model_price["output"] / Decimal("1000000")
-        )
-        return cost.quantize(Decimal("0.000001"))
 
     @property
     def info(self) -> dict[str, Any]:
@@ -203,6 +225,8 @@ class BaseAgent:
             "version": self.version,
             "phase": self.phase,
             "model": self.model,
+            "provider": self.provider_name,
+            "model_tier": self._model_tier.value,
             "autonomy_tier": self.autonomy_tier,
             "max_budget_usd": float(self.max_budget_usd),
         }

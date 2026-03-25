@@ -966,6 +966,8 @@ All endpoints are prefixed with `/api/v1`. Request and response bodies use the d
     "cost_today_usd": 2.40,
     "last_invocation_at": "2026-03-24T14:28:00.000Z",
     "invocation_count_today": 12,
+    "provider": "anthropic",
+    "tier": "powerful",
     "manifest": { "model": "claude-opus-4-6", "max_tokens": 16000 },
     "prompt_preview": "You are the PRD Writer agent. Your task is to generate...",
     "maturity": {
@@ -1438,7 +1440,21 @@ Single agent:
       }
     ],
     "generated_at": "2026-03-24T14:35:00.000Z",
-    "trend_pct": -5.2
+    "trend_pct": -5.2,
+    "by_provider": [
+      {
+        "provider": "anthropic",
+        "cost_usd": 128.70,
+        "invocation_count": 620,
+        "pct_of_total": 90.3
+      },
+      {
+        "provider": "openai",
+        "cost_usd": 13.80,
+        "invocation_count": 48,
+        "pct_of_total": 9.7
+      }
+    ]
   },
   "meta": {
     "request_id": "550e8400-e29b-41d4-a716-446655440040",
@@ -2498,6 +2514,114 @@ Single agent:
 **Data shape:** `McpServerStatus[]` (INTERACTION-MAP 2.21)
 
 **Error Codes:** None (always returns 200; unhealthy servers reflected in data).
+
+---
+
+#### GET /system/providers — List Available LLM Providers
+
+| Field | Value |
+|---|---|
+| **Interaction ID** | — (REST-only) |
+| **MCP Tool** | — |
+| **Dashboard Screen** | S-001 Fleet Health Overview (LLM Provider Status) |
+| **Shared Service** | `ProviderService.list_providers()` |
+| **Auth** | JWT or API Key (read) |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "name": "anthropic",
+      "enabled": true,
+      "healthy": true,
+      "models": ["claude-sonnet-4-6", "claude-haiku-3", "claude-opus-4-6"],
+      "tier_mapping": {
+        "fast": "claude-haiku-3",
+        "balanced": "claude-sonnet-4-6",
+        "powerful": "claude-opus-4-6"
+      },
+      "agent_count": 44
+    },
+    {
+      "name": "openai",
+      "enabled": true,
+      "healthy": true,
+      "models": ["gpt-4o-mini", "gpt-4o", "o3"],
+      "tier_mapping": {
+        "fast": "gpt-4o-mini",
+        "balanced": "gpt-4o",
+        "powerful": "o3"
+      },
+      "agent_count": 4
+    },
+    {
+      "name": "ollama",
+      "enabled": false,
+      "healthy": null,
+      "models": [],
+      "tier_mapping": {},
+      "agent_count": 0
+    }
+  ],
+  "meta": {
+    "request_id": "550e8400-e29b-41d4-a716-446655440082",
+    "timestamp": "2026-03-24T14:35:00.000Z",
+    "duration_ms": 5
+  }
+}
+```
+
+**Data shape:** `LLMProviderInfo[]`
+
+**Notes:** The `tier_mapping` shows how abstract tiers (`fast`, `balanced`, `powerful`) resolve to concrete model IDs for each provider. Agents declare a tier in their manifest rather than a hardcoded model ID. The platform resolves the tier to a model at invocation time via `sdk/llm/LLMProvider`.
+
+---
+
+#### GET /system/providers/{name}/health — Check Provider Health
+
+| Field | Value |
+|---|---|
+| **Interaction ID** | — (REST-only) |
+| **MCP Tool** | — |
+| **Dashboard Screen** | S-001 Fleet Health Overview (LLM Provider Status) |
+| **Shared Service** | `ProviderService.check_health(name)` |
+| **Auth** | JWT or API Key (read) |
+
+**Path Parameters:**
+
+| Param | Type | Description |
+|---|---|---|
+| `name` | string | Provider name: `anthropic`, `openai`, `ollama` |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "name": "anthropic",
+    "healthy": true,
+    "latency_ms": 120,
+    "last_check_at": "2026-03-24T14:34:50.000Z",
+    "error_rate_pct": 0.1,
+    "models_available": ["claude-sonnet-4-6", "claude-haiku-3", "claude-opus-4-6"],
+    "rate_limit_remaining": 850,
+    "rate_limit_total": 1000
+  },
+  "meta": {
+    "request_id": "550e8400-e29b-41d4-a716-446655440083",
+    "timestamp": "2026-03-24T14:35:00.000Z",
+    "duration_ms": 125
+  }
+}
+```
+
+**Error Codes:**
+
+| Error Code | HTTP Status | Condition |
+|---|---|---|
+| `PROVIDER_NOT_FOUND` | 404 | Unknown provider name |
 
 ---
 

@@ -33,7 +33,8 @@ This document defines every non-functional requirement (NFR) for the Agentic SDL
 | Interface Parity | Q-049 – Q-053 | 5 | 4 | 1 | 0 |
 | Data | Q-054 – Q-059 | 6 | 4 | 2 | 0 |
 | Cost | Q-060 – Q-064 | 5 | 4 | 1 | 0 |
-| **Total** | | **64** | **38** | **22** | **4** |
+| Provider Portability | Q-065 – Q-066 | 2 | 1 | 1 | 0 |
+| **Total** | | **66** | **39** | **23** | **4** |
 
 ---
 
@@ -615,10 +616,11 @@ invocation costs. [P0] [C]
 ```
 
 ```
-Q-062: Cost — Cost tracking accuracy SHALL be within 2% of actual Anthropic API
-billing at fleet, project, and agent aggregation levels. Verify: Weekly
+Q-062: Cost — Cost tracking accuracy SHALL be within 2% of actual LLM provider API
+billing at fleet, project, and agent aggregation levels. Cost calculation is
+provider-aware (Anthropic pricing, OpenAI pricing, Ollama = $0.00). Verify: Weekly
 reconciliation job `cost_reconciliation` compares `cost_events` totals against
-Anthropic billing API; automated alert if delta exceeds 2% at any aggregation
+provider billing APIs; automated alert if delta exceeds 2% at any aggregation
 level; monthly report published to compliance dashboard. [P0] [P] [M7]
 ```
 
@@ -638,6 +640,30 @@ invocations at that level and notify the project owner. Verify: Integration test
 `test_budget_tier_enforcement` simulates spend exceeding each tier and asserts
 invocation blocked; cost dashboard displays current spend vs. budget for each tier;
 Prometheus gauges `budget_remaining{tier}` tracked. [P1] [C]
+```
+
+---
+
+## 12a. Provider Portability (Q-065 – Q-066)
+
+**PRD traceability:** C1, R-13
+
+```
+Q-065: Provider Portability — System SHALL produce equivalent outputs when switching
+between LLM providers at the same tier. Verify: Run G1-cost-tracker on Anthropic
+(`LLM_PROVIDER=anthropic`) and OpenAI (`LLM_PROVIDER=openai`), compare JSON schema
+compliance of both outputs; integration test `test_provider_portability` asserts both
+providers return valid CostReport schema; output structure test validates all required
+fields present regardless of provider. [P1] [P]
+```
+
+```
+Q-066: Provider Failover — If primary LLM provider fails (API error, timeout, rate
+limit), system SHALL failback to secondary provider within 30 seconds. Verify: Chaos
+test `test_provider_failover` kills the primary provider connection mid-invocation
+and asserts the agent completes using the fallback provider; failover event is logged
+to audit trail with original and fallback provider names; total latency including
+failover does not exceed 30s. [P1] [C]
 ```
 
 ---

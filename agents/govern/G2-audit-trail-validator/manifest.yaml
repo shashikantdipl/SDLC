@@ -1,0 +1,101 @@
+# G2-audit-trail-validator — Audit trail completeness and compliance validation
+# Follows G1-cost-tracker gold standard pattern.
+
+identity:
+  id: G2-audit-trail-validator
+  name: Audit Trail Validator
+  version: "1.0.0"
+  description: "Validates audit trail completeness, identifies gaps in logging, checks compliance with SOC2 and AI Act requirements"
+  owner: platform-team
+  phase: govern
+  extends: governance
+  mixins: []
+  tags: [audit, compliance, governance, validation, soc2]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_id]
+    properties:
+      project_id:
+        type: string
+        description: "Project to validate audit trail for"
+      period_days:
+        type: integer
+        default: 7
+        description: "Number of days to check for completeness"
+      check_types:
+        type: array
+        items:
+          type: string
+          enum: [completeness, consistency, compliance, timeliness]
+        default: [completeness, consistency, compliance, timeliness]
+        description: "Which validation checks to run"
+      agent_ids:
+        type: array
+        items:
+          type: string
+        description: "Specific agents to validate (empty = all agents)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/audit-validation-report.schema.json
+  channels: [stdout]
+  writes_to: audit_validation_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.05
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.04
+      action: slack_alert
+    - condition: gaps_found > 10
+      action: slack_alert
+
+maturity:
+  current_level: professional
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [audit_events, agent_registry, cost_metrics, pipeline_runs]
+    writes: [audit_trail, audit_validation_report]
+  regulations: [SOC2, AI_ACT]

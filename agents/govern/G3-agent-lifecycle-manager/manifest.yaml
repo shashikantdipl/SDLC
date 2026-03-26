@@ -1,0 +1,98 @@
+# G3-agent-lifecycle-manager — Agent versioning, canary deployments, maturity progression
+# Follows G1-cost-tracker gold standard pattern.
+
+identity:
+  id: G3-agent-lifecycle-manager
+  name: Agent Lifecycle Manager
+  version: "1.0.0"
+  description: "Manages agent version slots (active/canary/previous), canary traffic splitting, maturity progression (apprentice→professional→expert), and safe rollback"
+  owner: platform-team
+  phase: govern
+  extends: governance
+  mixins: []
+  tags: [lifecycle, versioning, canary, maturity, deployment, governance]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [action, agent_id]
+    properties:
+      action:
+        type: string
+        enum: [assess_readiness, plan_promotion, plan_rollback, evaluate_maturity, recommend_canary]
+        description: "Which lifecycle action to perform"
+      agent_id:
+        type: string
+        description: "Agent to manage"
+      agent_detail:
+        type: object
+        description: "Current agent state from agent_registry (version, maturity, canary %)"
+      performance_data:
+        type: object
+        description: "Recent performance metrics (override_rate, confidence_avg, error_rate, cost_avg)"
+      version_history:
+        type: array
+        items:
+          type: object
+        description: "Previous version deployments with outcomes"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/lifecycle-assessment.schema.json
+  channels: [stdout]
+  writes_to: lifecycle_assessment
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.05
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_promote_or_rollback
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: action == "plan_rollback"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [agent_registry, audit_events, cost_metrics]
+    writes: [audit_trail, lifecycle_assessment]
+  regulations: []

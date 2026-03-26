@@ -1,0 +1,108 @@
+# G4-team-orchestrator — Pipeline execution coordinator
+# The BRAIN of the platform. Runs the 14-step document-stack pipeline,
+# manages parallel groups, enforces cost ceilings, triggers approval gates.
+# Uses balanced tier (sonnet-class) because orchestration requires strong reasoning.
+
+identity:
+  id: G4-team-orchestrator
+  name: Team Orchestrator
+  version: "1.0.0"
+  description: "Coordinates multi-agent pipeline execution — manages step ordering, parallel groups, quality gates, cost ceilings, checkpoints, and approval gates for the 14-document Full-Stack-First pipeline"
+  owner: platform-team
+  phase: govern
+  extends: orchestrator
+  mixins: []
+  tags: [orchestration, pipeline, team, coordination, governance]
+
+foundation_model:
+  # Orchestrator needs strong reasoning — balanced tier (sonnet-class)
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [action]
+    properties:
+      action:
+        type: string
+        enum: [plan_execution, assess_step_result, handle_gate, recommend_recovery, summarize_run]
+        description: "Which orchestration action to perform"
+      pipeline_name:
+        type: string
+        default: document-stack
+        description: "Pipeline to orchestrate"
+      pipeline_config:
+        type: object
+        description: "Pipeline config (steps, parallel_groups, gates, cost_ceiling)"
+      current_state:
+        type: object
+        description: "Current pipeline run state (run_id, step statuses, cost_so_far, elapsed)"
+      step_result:
+        type: object
+        description: "Result of a just-completed step (for assess_step_result)"
+      gate_context:
+        type: object
+        description: "Context for approval gate decision (for handle_gate)"
+      error_context:
+        type: object
+        description: "Error details (for recommend_recovery)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: dag
+  max_steps: 20
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/orchestration-decision.schema.json
+  channels: [stdout]
+  writes_to: orchestration_decision
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.50
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_gate_or_budget_breach
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.40
+      action: slack_alert
+    - condition: action == "recommend_recovery"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [pipeline_runs, pipeline_steps, session_context, approval_requests, cost_metrics, agent_registry]
+    writes: [audit_trail, orchestration_decision]
+  regulations: []

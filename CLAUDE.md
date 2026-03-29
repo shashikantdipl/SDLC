@@ -19,45 +19,52 @@ This is a **specification workspace**, not a code repo. It contains:
 - GOVERN agents (G1-G4) — live, tested with real LLM calls
 
 ## Active Approach: Full-Stack-First (v2 — 24-Document Stack)
-We use the Full-Stack-First approach which produces **24 documents** across Pre-Phase + Phases A-E:
+
+**Document number = build order.** Doc 00 is built first, Doc 21 is built last. Protocol docs (22-23) are built after Step 11.
 
 ### Pre-Phase — Business Discovery
-- Doc 16: BRD (Business Requirements)
+- **00** BRD (Business Requirements)
 
 ### Phase A — Foundations
-- Docs 00-02: ROADMAP, PRD, ARCH ★(upgraded: +memory, +routing, +RAG)
+- **01** ROADMAP
+- **02** PRD
+- **03** ARCH ★ (upgraded: +memory, +routing, +RAG)
 
 ### Phase B — Decomposition
-- Doc 05: FEATURE-CATALOG ★(upgraded: 18-field JSON, ai_required)
-- Doc 04: QUALITY ★(upgraded: per-module thresholds, SLI/SLO)
-- Doc 17: SECURITY-ARCH (NEW: auth, RBAC, threat model, data governance, SBOM)
+- **04** FEATURE-CATALOG ★ (upgraded: 18-field JSON, ai_required)
+- **05** QUALITY ★ (upgraded: per-module thresholds, SLI/SLO)
+- **06** SECURITY-ARCH
 
 ### Phase C — Interface Design
-- Docs 06-08: INTERACTION-MAP, MCP-TOOL-SPEC, DESIGN-SPEC
+- **07** INTERACTION-MAP
+- **08** MCP-TOOL-SPEC ‖ parallel with 09
+- **09** DESIGN-SPEC ‖ parallel with 08
 
 ### Phase D — Data & Build-Facing
-- Docs 09-11: DATA-MODEL, API-CONTRACTS, BACKLOG
-- Doc 18: USER-STORIES (NEW: client-facing stories with SACs)
-- Doc 03: CLAUDE.md (delayed from Phase A — now has full context)
-- Doc 12: ENFORCEMENT ★(upgraded: +prompt versioning, +API governance)
+- **10** DATA-MODEL
+- **11** API-CONTRACTS
+- **12** USER-STORIES
+- **13** BACKLOG
+- **14** CLAUDE.md (delayed from Phase A — now has full context)
+- **15** ENFORCEMENT ★ (upgraded: +prompt versioning, +API governance)
 
 ### Phase E — Operations, Safety & Compliance
-- Doc 19: INFRA-DESIGN (NEW: environments, CI/CD, observability, DR, capacity)
-- Doc 20: MIGRATION-PLAN (NEW: cutover runbook, phased approach)
-- Doc 13: TESTING ★(upgraded: +LLM eval framework, +go-live checklist)
-- Doc 21: FAULT-TOLERANCE (NEW: 5-layer failure scenarios, on-call procedures)
-- Doc 22: GUARDRAILS-SPEC (NEW: 4-layer AI safety guardrails — unique to AI-native)
-- Doc 23: COMPLIANCE-MATRIX (NEW: SOC2/GDPR/EU AI Act/NIST cross-reference)
+- **16** INFRA-DESIGN
+- **17** MIGRATION-PLAN ‖ parallel with 18
+- **18** TESTING ★ (upgraded: +LLM eval, +go-live checklist) ‖ parallel with 17
+- **19** FAULT-TOLERANCE
+- **20** GUARDRAILS-SPEC
+- **21** COMPLIANCE-MATRIX
 
 ### Protocol Documents
-- Doc 14: AGENT-HANDOFF-PROTOCOL
-- Doc 15: AGENT-INTERACTION-DIAGRAM
+- **22** AGENT-HANDOFF-PROTOCOL
+- **23** AGENT-INTERACTION-DIAGRAM
 
 ### Key Innovations
-- **INTERACTION-MAP** (Doc 06) coordinates MCP tools and dashboard screens in parallel
-- **FEATURE-CATALOG before QUALITY** — enables per-module coverage thresholds
-- **GUARDRAILS-SPEC** — AI safety guardrails that don't exist in traditional SDLC
-- **COMPLIANCE-MATRIX** — audit-ready cross-reference for regulated industries
+- **INTERACTION-MAP** (Doc 07) coordinates MCP tools and dashboard screens in parallel
+- **FEATURE-CATALOG (04) before QUALITY (05)** — enables per-module coverage thresholds
+- **GUARDRAILS-SPEC (20)** — AI safety guardrails that don't exist in traditional SDLC
+- **COMPLIANCE-MATRIX (21)** — audit-ready cross-reference for regulated industries
 - **LLM-agnostic architecture** — agents work on Anthropic, OpenAI, or Ollama
 
 ## Build Sequence
@@ -66,7 +73,7 @@ See `Base_prompts/Full-Stack-First/Correct Build Sequence.md` for the v2 depende
 ## Rules
 - Generated documents go in `Generated-Docs/` only
 - Every generated document must have a version header and generation date
-- Document numbering: 00-15 (original), 16-23 (new in v2)
+- **Document number = build order** (00 through 23)
 - Prompt templates in `Base_prompts/` are read-only references — never modify them during generation
 - Always commit each generated document individually with message format: `docs: generate {NN}-{DOC} using Full-Stack-First approach`
 - ★ marks documents upgraded in v2 with new sections

@@ -5,7 +5,7 @@
 **Philosophy:** Design MCP tools and dashboard screens IN PARALLEL from a shared interaction map, then build a unified backend that serves both equally.
 
 **Key innovations:**
-- Document #6 (INTERACTION-MAP) coordinates the parallel design of MCP and screens, preventing divergence
+- Document #7 (INTERACTION-MAP) coordinates the parallel design of MCP and screens, preventing divergence
 - FEATURE-CATALOG before QUALITY — enables per-module coverage thresholds
 - SECURITY-ARCH in Phase B — informs all downstream design decisions
 - GUARDRAILS-SPEC and COMPLIANCE-MATRIX — AI-native documents that don't exist in traditional SDLC
@@ -19,60 +19,60 @@
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 0    | **16** | BRD.md           | *Discovery sessions, client docs* | BR-NNN requirements, stakeholder map, business case, OQ tracker → consumed by Docs 0, 1, 17, 20 | — |
+| 0    | **0**  | BRD.md           | *Discovery sessions, client docs* | BR-NNN requirements, stakeholder map, business case, OQ tracker → consumed by Docs 1, 2, 17 | — |
 
 ### Phase A — Foundations
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 1    | **0**  | ROADMAP.md       | *Raw spec* + **BRD**             | Project context, timeline, risk register → consumed by Doc 3 | — |
-| 2    | **1**  | PRD.md           | *Raw spec* + **BRD**             | Personas, journeys (MCP + Dashboard), capabilities → consumed by Docs 2, 4, 5, 6, 8, 10, 17, 18, 20 | with Step 1 |
-| 3    | **2**  | ARCH.md ★        | ← **PRD**                        | Shared service layer, MCP servers, dashboard arch, agent memory, LLM routing, RAG → consumed by Docs 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 17, 19, 20, 21, 22, 23 | — |
+| 1    | **1**  | ROADMAP.md       | *Raw spec* + **BRD**             | Project context, timeline, risk register → consumed by Doc 14 | — |
+| 2    | **2**  | PRD.md           | *Raw spec* + **BRD**             | Personas, journeys (MCP + Dashboard), capabilities → consumed by Docs 3, 4, 5, 6, 7, 9, 11, 12, 13, 17 | with Step 1 |
+| 3    | **3**  | ARCH.md ★        | ← **PRD**                        | Shared service layer, MCP servers, dashboard arch, agent memory, LLM routing, RAG → consumed by Docs 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 | — |
 
 ### Phase B — Decomposition
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 4    | **5**  | FEATURE-CATALOG ★ | ← **PRD** + **ARCH**            | F-NNN features (18-field JSON) with interfaces[], ai_required → consumed by Docs 4, 6, 7, 9, 11, 17, 19, 21 | — |
-| 5    | **4**  | QUALITY.md ★     | ← **PRD** + **ARCH** + **FEATURES** | Q-NNN NFRs, per-module thresholds, SLI/SLO → consumed by Docs 6, 7, 8, 9, 11, 13, 17, 19, 21, 22, 23 | — |
-| 6    | **17** | SECURITY-ARCH    | ← **PRD** + **ARCH** + **QUALITY** + **FEATURES** | Auth, RBAC, threat model, data classification, agent perms, data governance, SBOM → consumed by Docs 12, 19, 20, 21, 22, 23 | — |
+| 4    | **4**  | FEATURE-CATALOG ★ | ← **PRD** + **ARCH**            | F-NNN features (18-field JSON) with interfaces[], ai_required → consumed by Docs 5, 6, 7, 8, 9, 10, 12, 13, 16 | — |
+| 5    | **5**  | QUALITY.md ★     | ← **PRD** + **ARCH** + **FEATURES** | Q-NNN NFRs, per-module thresholds, SLI/SLO → consumed by Docs 6, 7, 8, 9, 10, 13, 15, 16, 18, 19, 20, 21 | — |
+| 6    | **6**  | SECURITY-ARCH    | ← **PRD** + **ARCH** + **QUALITY** + **FEATURES** | Auth, RBAC, threat model, data classification, agent perms, data governance, SBOM → consumed by Docs 15, 16, 17, 18, 19, 20, 21 | — |
 
 ### Phase C — Interface Design
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 7    | **6**  | INTERACTION-MAP  | ← **PRD** + **ARCH** + **FEATURES** + **QUALITY** | Shared data shapes, interaction IDs, cross-interface journeys → consumed by Docs 7, 8, 9, 10, 11, 13 | — |
-| 8    | **7**  | MCP-TOOL-SPEC    | ← **INTERACTION-MAP** + **ARCH** + **FEATURES** + **QUALITY** | MCP tools referencing interaction IDs → consumed by Docs 9, 10, 11, 13, 18 | **with Step 9** |
-| 9    | **8**  | DESIGN-SPEC      | ← **INTERACTION-MAP** + **PRD** + **QUALITY** + **FEATURES** | Screens referencing interaction IDs → consumed by Docs 9, 10, 11, 18 | **with Step 8** |
+| 7    | **7**  | INTERACTION-MAP  | ← **PRD** + **ARCH** + **FEATURES** + **QUALITY** | Shared data shapes, interaction IDs, cross-interface journeys → consumed by Docs 8, 9, 10, 11, 13, 18 | — |
+| 8    | **8**  | MCP-TOOL-SPEC    | ← **INTERACTION-MAP** + **ARCH** + **FEATURES** + **QUALITY** | MCP tools referencing interaction IDs → consumed by Docs 10, 11, 12, 13, 18 | **with Step 9** |
+| 9    | **9**  | DESIGN-SPEC      | ← **INTERACTION-MAP** + **PRD** + **QUALITY** + **FEATURES** | Screens referencing interaction IDs → consumed by Docs 10, 11, 12, 13, 18 | **with Step 8** |
 
 ### Phase D — Data & Build-Facing
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 10   | **9**  | DATA-MODEL.md    | ← **ARCH** + **FEATURES** + **QUALITY** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** | Schemas + indexes for both MCP and dashboard → consumed by Docs 10, 13, 18, 20, 21 | — |
-| 11   | **10** | API-CONTRACTS.md | ← **ARCH** + **DATA-MODEL** + **PRD** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** | REST endpoints (wraps MCP + feeds dashboard) → consumed by Docs 18, 21 | — |
-| 12   | **18** | USER-STORIES     | ← **PRD** + **FEATURES** + **QUALITY** + **ARCH** + **DATA-MODEL** + **API-CONTRACTS** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** | US-DOMAIN-NNN stories with SACs → consumed by Doc 11 | — |
-| 13   | **11** | BACKLOG          | ← **FEATURES** + **PRD** + **ARCH** + **QUALITY** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** + **USER-STORIES** | S-NNN sprint stories → terminal | — |
-| 14   | **3**  | CLAUDE.md        | ← **ROADMAP** + **ARCH** + **DATA-MODEL** + **API-CONTRACTS** | Rules, patterns (shared service, MCP, dashboard) → consumed by Docs 12, 13 | with Step 13 |
-| 15   | **12** | ENFORCEMENT ★    | ← **CLAUDE** + **ARCH** + **QUALITY** + **SECURITY-ARCH** | .claude/ rules + prompt versioning + API governance → terminal | — |
+| 10   | **10** | DATA-MODEL.md    | ← **ARCH** + **FEATURES** + **QUALITY** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** | Schemas + indexes for both MCP and dashboard → consumed by Docs 11, 12, 14, 17, 18, 19, 21 | — |
+| 11   | **11** | API-CONTRACTS.md | ← **ARCH** + **DATA-MODEL** + **PRD** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** | REST endpoints (wraps MCP + feeds dashboard) → consumed by Docs 12, 14, 19 | — |
+| 12   | **12** | USER-STORIES     | ← **PRD** + **FEATURES** + **QUALITY** + **ARCH** + **DATA-MODEL** + **API-CONTRACTS** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** | US-DOMAIN-NNN stories with SACs → consumed by Doc 13 | — |
+| 13   | **13** | BACKLOG          | ← **FEATURES** + **PRD** + **ARCH** + **QUALITY** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** + **USER-STORIES** | S-NNN sprint stories → terminal | — |
+| 14   | **14** | CLAUDE.md        | ← **ROADMAP** + **ARCH** + **DATA-MODEL** + **API-CONTRACTS** | Rules, patterns (shared service, MCP, dashboard) → consumed by Docs 15, 18 | with Step 13 |
+| 15   | **15** | ENFORCEMENT ★    | ← **CLAUDE** + **ARCH** + **QUALITY** + **SECURITY-ARCH** | .claude/ rules + prompt versioning + API governance → consumed by Doc 20 | — |
 
 ### Phase E — Operations, Safety & Compliance
 
 | Step | Doc #  | Document         | Inputs                           | Produces                                           | Parallel? |
 | ---- | ------ | ---------------- | -------------------------------- | -------------------------------------------------- | --------- |
-| 16   | **19** | INFRA-DESIGN     | ← **ARCH** + **SECURITY-ARCH** + **QUALITY** + **FEATURES** | Environments, CI/CD, observability, DR, capacity → consumed by Docs 20, 21 | — |
-| 17   | **20** | MIGRATION-PLAN   | ← **DATA-MODEL** + **ARCH** + **PRD** + **SECURITY-ARCH** + **BRD** | Cutover runbook, source-to-target mapping → terminal | with Step 18 |
-| 18   | **13** | TESTING.md ★     | ← **ARCH** + **QUALITY** + **DATA-MODEL** + **CLAUDE** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** + **SECURITY-ARCH** | Test strategy + LLM eval + go-live checklist → terminal | with Step 17 |
-| 19   | **21** | FAULT-TOLERANCE  | ← **ARCH** + **DATA-MODEL** + **API-CONTRACTS** + **SECURITY-ARCH** + **INFRA-DESIGN** + **QUALITY** | 5-layer failure scenarios + on-call procedures → terminal | — |
-| 20   | **22** | GUARDRAILS-SPEC  | ← **ARCH** + **SECURITY-ARCH** + **ENFORCEMENT** + **QUALITY** + **AGENT-HANDOFF** | 4-layer AI safety guardrails → consumed by Doc 23 | — |
-| 21   | **23** | COMPLIANCE-MATRIX | ← **SECURITY-ARCH** + **QUALITY** + **DATA-MODEL** + **ARCH** + **GUARDRAILS-SPEC** + **FAULT-TOLERANCE** | SOC2/GDPR/EU AI Act/NIST mapping → terminal | — |
+| 16   | **16** | INFRA-DESIGN     | ← **ARCH** + **SECURITY-ARCH** + **QUALITY** + **FEATURES** | Environments, CI/CD, observability, DR, capacity → consumed by Doc 19 | — |
+| 17   | **17** | MIGRATION-PLAN   | ← **DATA-MODEL** + **ARCH** + **PRD** + **SECURITY-ARCH** + **BRD** | Cutover runbook, source-to-target mapping → terminal | with Step 18 |
+| 18   | **18** | TESTING.md ★     | ← **ARCH** + **QUALITY** + **DATA-MODEL** + **CLAUDE** + **MCP-TOOL-SPEC** + **DESIGN-SPEC** + **INTERACTION-MAP** + **SECURITY-ARCH** | Test strategy + LLM eval + go-live checklist → terminal | with Step 17 |
+| 19   | **19** | FAULT-TOLERANCE  | ← **ARCH** + **DATA-MODEL** + **API-CONTRACTS** + **SECURITY-ARCH** + **INFRA-DESIGN** + **QUALITY** | 5-layer failure scenarios + on-call procedures → consumed by Doc 21 | — |
+| 20   | **20** | GUARDRAILS-SPEC  | ← **ARCH** + **SECURITY-ARCH** + **ENFORCEMENT** + **QUALITY** + **AGENT-HANDOFF** | 4-layer AI safety guardrails → consumed by Doc 21 | — |
+| 21   | **21** | COMPLIANCE-MATRIX | ← **SECURITY-ARCH** + **QUALITY** + **DATA-MODEL** + **ARCH** + **GUARDRAILS-SPEC** + **FAULT-TOLERANCE** | SOC2/GDPR/EU AI Act/NIST mapping → terminal | — |
 
-### Protocol Documents (unchanged)
+### Protocol Documents
 
 | Doc #  | Document                     | Inputs                           | Parallel? |
 | ------ | ---------------------------- | -------------------------------- | --------- |
-| **14** | AGENT-HANDOFF-PROTOCOL.md    | ← **ARCH** + **MCP-TOOL-SPEC** + **DATA-MODEL** + **API-CONTRACTS** | after Step 11 |
-| **15** | AGENT-INTERACTION-DIAGRAM.md | ← **AGENT-HANDOFF-PROTOCOL**    | after Doc 14 |
+| **22** | AGENT-HANDOFF-PROTOCOL.md    | ← **ARCH** + **MCP-TOOL-SPEC** + **DATA-MODEL** + **API-CONTRACTS** | after Step 11 |
+| **23** | AGENT-INTERACTION-DIAGRAM.md | ← **AGENT-HANDOFF-PROTOCOL**    | after Doc 22 |
 
 ---
 
@@ -105,11 +105,11 @@
 
 | Doc | What's New |
 |-----|-----------|
-| 02-ARCH ★ | Agent memory architecture, LLM routing layer, RAG architecture |
-| 04-QUALITY ★ | Per-module coverage thresholds, SLI/SLO summary table |
-| 05-FEATURE-CATALOG ★ | 18-field JSON schema, ai_required, friction, incentive_type, META.json |
-| 12-ENFORCEMENT ★ | Prompt versioning rules, API governance rules |
-| 13-TESTING ★ | LLM evaluation framework, prompt regression tests, go-live checklist |
+| 03-ARCH ★ | Agent memory architecture, LLM routing layer, RAG architecture |
+| 05-QUALITY ★ | Per-module coverage thresholds, SLI/SLO summary table |
+| 04-FEATURE-CATALOG ★ | 18-field JSON schema, ai_required, friction, incentive_type, META.json |
+| 15-ENFORCEMENT ★ | Prompt versioning rules, API governance rules |
+| 18-TESTING ★ | LLM evaluation framework, prompt regression tests, go-live checklist |
 
 ---
 
@@ -138,7 +138,7 @@ Step 16 INFRA         ← ARCH (3) + SECURITY (6) + QUALITY (5) + FEATURES (4)  
 Step 17 MIGRATION     ← DATA (10) + ARCH (3) + PRD (2) + SECURITY (6) + BRD (0)  ✓
 Step 18 TESTING       ← ARCH (3) + QUALITY (5) + DATA (10) + CLAUDE (14) + MCP (8) + DESIGN (9) + INTERACTION (7) + SECURITY (6)  ✓
 Step 19 FAULT-TOL     ← ARCH (3) + DATA (10) + API (11) + SECURITY (6) + INFRA (16) + QUALITY (5)  ✓
-Step 20 GUARDRAILS    ← ARCH (3) + SECURITY (6) + ENFORCEMENT (15) + QUALITY (5) + HANDOFF (14-proto)  ✓
+Step 20 GUARDRAILS    ← ARCH (3) + SECURITY (6) + ENFORCEMENT (15) + QUALITY (5) + HANDOFF (22)  ✓
 Step 21 COMPLIANCE    ← SECURITY (6) + QUALITY (5) + DATA (10) + ARCH (3) + GUARDRAILS (20) + FAULT-TOL (19)  ✓
 ```
 

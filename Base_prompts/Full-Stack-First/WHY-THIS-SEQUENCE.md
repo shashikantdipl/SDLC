@@ -4,7 +4,7 @@
 
 You're building a product that serves BOTH AI clients AND human operators. Your developers use Claude Code (MCP), your managers use a dashboard, and your CI/CD uses REST APIs. You need ALL THREE interfaces to work seamlessly together.
 
-This page explains why the 14-document sequence exists and how it prevents the #1 problem with multi-interface products: **divergence**.
+This page explains why the 24-document sequence exists and how it prevents the #1 problem with multi-interface products: **divergence**.
 
 ---
 
@@ -16,7 +16,7 @@ When you build MCP tools and dashboard screens independently, they drift apart:
 - MCP handles errors as `{error: "budget_exceeded"}`, dashboard shows "Something went wrong"
 - Developer triggers a pipeline via MCP, but the approval step only works on dashboard — broken handoff
 
-**Full-Stack-First prevents this with one key innovation: the INTERACTION-MAP (Document #6).**
+**Full-Stack-First prevents this with one key innovation: the INTERACTION-MAP (Document #7).**
 
 ---
 
@@ -44,16 +44,17 @@ Full-Stack:     INTERACTION-MAP → MCP + Screens (parallel) → API (serves bot
 
 ---
 
-## The 14 Documents, Explained
+## The 24 Documents, Explained
 
-### Steps 1-6: Foundation (same across approaches, with tweaks)
+### Steps 0-6: Foundation & Decomposition
 
-**[0] ROADMAP** — Plans for 14 documents, marks the parallel MCP+Design sprint.
-**[1] PRD** — Personas declare their primary interface (MCP or Dashboard). Journeys show both paths. At least one cross-interface journey.
-**[2] ARCH** — Introduces the Shared Service Layer: MCP handlers and REST handlers call the same service functions. No logic duplication.
-**[3] CLAUDE.md** — Documents the Shared Service pattern as THE core pattern. Forbidden: logic in handlers.
-**[4] QUALITY** — NFRs for all 3 interfaces + interface parity requirements.
-**[5] FEATURE-CATALOG** — Each feature tagged with `interfaces: ["mcp", "rest", "dashboard"]` and `shared_service`.
+**[0] BRD** — Captures business requirements before any technical design begins.
+**[1] ROADMAP** — Plans for 24 documents, marks the parallel MCP+Design sprint.
+**[2] PRD** — Personas declare their primary interface (MCP or Dashboard). Journeys show both paths. At least one cross-interface journey.
+**[3] ARCH** — Introduces the Shared Service Layer: MCP handlers and REST handlers call the same service functions. No logic duplication.
+**[4] FEATURE-CATALOG** — Each feature tagged with `interfaces: ["mcp", "rest", "dashboard"]` and `shared_service`.
+**[5] QUALITY** — NFRs for all 3 interfaces + interface parity requirements.
+**[6] SECURITY-ARCH** — Auth, RBAC, threat model, data governance. Informs all downstream design.
 
 ### Step 7: INTERACTION-MAP (THE KEY DOCUMENT)
 
@@ -81,7 +82,7 @@ The INTERACTION-MAP is the CONTRACT between the MCP spec and the Design spec. It
 
 ### Steps 8-9: The Parallel Sprint
 
-**[7] MCP-TOOL-SPEC** and **[8] DESIGN-SPEC** are written in parallel:
+**[8] MCP-TOOL-SPEC** and **[9] DESIGN-SPEC** are written in parallel:
 - Both read from INTERACTION-MAP (shared data shapes, interaction IDs)
 - MCP-TOOL-SPEC produces tool schemas referencing interaction IDs
 - DESIGN-SPEC produces screen layouts referencing the same interaction IDs
@@ -89,45 +90,68 @@ The INTERACTION-MAP is the CONTRACT between the MCP spec and the Design spec. It
 
 This parallel sprint is what makes Full-Stack-First efficient. You don't waste time designing MCP first then screens, or screens first then MCP.
 
-### Steps 10-14: Building on both interfaces
+### Steps 10-21: Building on both interfaces
 
-**[9] DATA-MODEL** — Indexes optimized for BOTH MCP query patterns AND dashboard query patterns. Query Pattern Registry covers all consumers.
-**[10] API-CONTRACTS** — REST API wraps MCP tools AND feeds dashboard screens. Dual-role documented.
-**[11] BACKLOG** — Stories reference interaction IDs, MCP tools, AND dashboard screens. Sprint order: shared services first, then interfaces, then cross-interface integration.
-**[12] ENFORCEMENT** — The `/new-interaction` skill scaffolds ALL layers at once: service + MCP tool + REST route + dashboard component + tests.
-**[13] TESTING** — Cross-interface tests verify MCP and dashboard work together. Parity tests ensure MCP and REST return identical data.
+**[10] DATA-MODEL** — Indexes optimized for BOTH MCP query patterns AND dashboard query patterns. Query Pattern Registry covers all consumers.
+**[11] API-CONTRACTS** — REST API wraps MCP tools AND feeds dashboard screens. Dual-role documented.
+**[12] USER-STORIES** — Client-facing stories with acceptance criteria for both MCP and dashboard.
+**[13] BACKLOG** — Stories reference interaction IDs, MCP tools, AND dashboard screens. Sprint order: shared services first, then interfaces, then cross-interface integration.
+**[14] CLAUDE.md** — Documents the Shared Service pattern as THE core pattern. Forbidden: logic in handlers.
+**[15] ENFORCEMENT** — The `/new-interaction` skill scaffolds ALL layers at once: service + MCP tool + REST route + dashboard component + tests.
+**[16] INFRA-DESIGN** — Environments, CI/CD, observability, DR, and capacity planning.
+**[17] MIGRATION-PLAN** — Cutover runbook, source-to-target mapping for enterprise deployments.
+**[18] TESTING** — Cross-interface tests verify MCP and dashboard work together. Parity tests ensure MCP and REST return identical data. LLM evaluation framework.
+**[19] FAULT-TOLERANCE** — 5-layer failure scenarios with on-call procedures.
+**[20] GUARDRAILS-SPEC** — 4-layer AI safety guardrails (input, processing, output, governance).
+**[21] COMPLIANCE-MATRIX** — SOC2/GDPR/EU AI Act/NIST mapping for auditors.
 
 ---
 
 ## The Dependency Graph
 
 ```
-Raw Spec
+Discovery Sessions
   │
-  ├──→ [0] ROADMAP ──────────────────────────────────┐
-  │                                                   │
-  └──→ [1] PRD ──┬──→ [2] ARCH ──┬──→ [3] CLAUDE.md  │
-                 │               │                   │
-                 ├───────────────┼──→ [4] QUALITY     │
-                 │               │                   │
-                 ├───────────────┴──→ [5] FEATURES    │
-                 │                                   │
-                 │   PRD + ARCH + FEAT + QUALITY      │
-                 │       └──→ [6] INTERACTION-MAP ────┤  ← THE KEY
-                 │               │                   │
-                 │        ┌──────┴──────┐            │
-                 │        ▼             ▼            │
-                 │   [7] MCP-SPEC  [8] DESIGN-SPEC   │  ← PARALLEL
-                 │        │             │            │
-                 │        └──────┬──────┘            │
-                 │               ▼                   │
-                 │          [9] DATA-MODEL            │
-                 │               │                   │
-                 │          [10] API-CONTRACTS        │
-                 │                                   │
-                 │   ┌──── [11] BACKLOG               │
-                 │   ├──── [12] ENFORCEMENT           │
-                 └───┴──── [13] TESTING               │
+  └──→ [0] BRD ──┐
+                  │
+  Raw Spec ───────┤
+                  │
+  ├──→ [1] ROADMAP ────────────────────────────────────────────────┐
+  │                                                                 │
+  └──→ [2] PRD ──┬──→ [3] ARCH ──┬──→ [4] FEATURES                 │
+                 │               │       │                          │
+                 │               │       └──→ [5] QUALITY           │
+                 │               │               │                  │
+                 │               │       [6] SECURITY-ARCH          │
+                 │               │                                  │
+                 │   PRD + ARCH + FEAT + QUALITY                    │
+                 │       └──→ [7] INTERACTION-MAP ──────────────────┤  ← THE KEY
+                 │               │                                  │
+                 │        ┌──────┴──────┐                           │
+                 │        ▼             ▼                           │
+                 │   [8] MCP-SPEC  [9] DESIGN-SPEC                  │  ← PARALLEL
+                 │        │             │                           │
+                 │        └──────┬──────┘                           │
+                 │               ▼                                  │
+                 │          [10] DATA-MODEL                          │
+                 │               │                                  │
+                 │          [11] API-CONTRACTS                       │
+                 │               │                                  │
+                 │          [12] USER-STORIES                        │
+                 │               │                                  │
+                 │   ┌──── [13] BACKLOG    [14] CLAUDE.md ──────────┘
+                 │   │                          │
+                 │   │                     [15] ENFORCEMENT
+                 │   │                          │
+                 │   │                     [16] INFRA-DESIGN
+                 │   │                          │
+                 │   │              ┌──── [17] MIGRATION ──── [18] TESTING  ← PARALLEL
+                 │   │              │           │
+                 │   │              │      [19] FAULT-TOLERANCE
+                 │   │              │           │
+                 │   │              │      [20] GUARDRAILS-SPEC
+                 │   │              │           │
+                 └───┴──────────────┴──── [21] COMPLIANCE-MATRIX
 ```
 
 ---
@@ -157,4 +181,4 @@ Examples:
 
 ## TL;DR
 
-**Full-Stack-First designs MCP tools and dashboard screens in parallel, unified by a shared INTERACTION-MAP.** The INTERACTION-MAP defines every interaction, its data shape, and its name — once. Both MCP and dashboard specs reference these shared definitions. The backend (shared service layer, data model, API) is derived from what BOTH interfaces need. Result: no divergence, no wasted effort, and cross-interface workflows that actually work.
+**Full-Stack-First designs MCP tools and dashboard screens in parallel, unified by a shared INTERACTION-MAP (Doc 7).** The INTERACTION-MAP defines every interaction, its data shape, and its name — once. Both MCP and dashboard specs reference these shared definitions. The backend (shared service layer, data model, API) is derived from what BOTH interfaces need. Result: no divergence, no wasted effort, and cross-interface workflows that actually work.

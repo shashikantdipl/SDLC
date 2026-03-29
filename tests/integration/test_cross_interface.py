@@ -98,7 +98,7 @@ class TestJourney1PipelineWithApprovalGate:
             PipelineRun(
                 run_id=RUN_ID, project_id=PROJECT_ID,
                 pipeline_name="document-stack", status=PipelineStatus.COMPLETED,
-                current_step=14, total_steps=22,
+                current_step=22, total_steps=22,
                 triggered_by="priya", started_at=NOW,
                 completed_at=NOW + timedelta(minutes=30),
                 cost_usd=Decimal("4.20"),

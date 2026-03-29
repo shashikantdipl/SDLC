@@ -110,14 +110,26 @@ class BaseAgent:
         if self._resolved_model is None:
             if self._model_override:
                 self._resolved_model = self._model_override
+            elif self._provider is not None:
+                self._resolved_model = self._provider.resolve_model(self._model_tier)
             else:
-                self._resolved_model = self.provider.resolve_model(self._model_tier)
+                # Fallback tier-to-model mapping without creating provider
+                # (avoids API key requirement for dry-run / info access)
+                _FALLBACK = {
+                    ModelTier.FAST: "claude-haiku-4-5-20251001",
+                    ModelTier.BALANCED: "claude-sonnet-4-6",
+                    ModelTier.POWERFUL: "claude-opus-4-6",
+                }
+                self._resolved_model = _FALLBACK.get(self._model_tier, "claude-sonnet-4-6")
         return self._resolved_model
 
     @property
     def provider_name(self) -> str:
         """Name of the active LLM provider."""
-        return self.provider.provider_name
+        if self._provider is None:
+            import os
+            return os.environ.get("LLM_PROVIDER", "anthropic")
+        return self._provider.provider_name
 
     def _create_default_provider(self) -> LLMProvider:
         """Create provider from manifest preference or environment."""

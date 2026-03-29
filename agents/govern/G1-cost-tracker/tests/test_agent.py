@@ -92,16 +92,19 @@ class TestG1DryRun:
 
         # Ensure no API key
         old_key = os.environ.pop("ANTHROPIC_API_KEY", None)
+        old_provider = os.environ.pop("LLM_PROVIDER", None)
         try:
             agent = BaseAgent(
                 agent_dir=Path(__file__).parent.parent,
                 dry_run=False,
             )
-            with pytest.raises(RuntimeError, match="no API key"):
+            with pytest.raises((ValueError, RuntimeError)):
                 await agent.invoke({"scope": "fleet", "scope_id": "all"})
         finally:
             if old_key:
                 os.environ["ANTHROPIC_API_KEY"] = old_key
+            if old_provider:
+                os.environ["LLM_PROVIDER"] = old_provider
 
 
 class TestG1PiiDetection:
@@ -118,22 +121,20 @@ class TestG1PiiDetection:
 
 
 class TestG1CostEstimation:
-    """Test cost estimation logic."""
+    """Test cost estimation via LLM provider (LLM-agnostic)."""
 
     @pytest.mark.asyncio
-    async def test_haiku_cost_estimation(self):
-        from sdk.base_agent import BaseAgent
+    async def test_provider_cost_calculation(self):
+        from sdk.llm.anthropic_provider import AnthropicProvider
+        from sdk.llm.provider import ProviderConfig
 
-        agent = BaseAgent(
-            agent_dir=Path(__file__).parent.parent,
-            dry_run=True,
-        )
+        config = ProviderConfig(provider_name="anthropic", api_key="test-key")
+        provider = AnthropicProvider(config)
 
-        # Haiku pricing: $0.80/1M input, $4.00/1M output
-        cost = agent._estimate_cost(input_tokens=1000, output_tokens=500)
-        expected_input = 1000 * 0.80 / 1_000_000  # 0.0008
-        expected_output = 500 * 4.00 / 1_000_000  # 0.002
-        assert abs(float(cost) - (expected_input + expected_output)) < 0.0001
+        # Haiku pricing: $1.00/1M input, $5.00/1M output
+        cost = provider.calculate_cost(input_tokens=1000, output_tokens=500, model="claude-haiku-4-5-20251001")
+        expected = (1000 * 1.00 + 500 * 5.00) / 1_000_000  # 0.0035
+        assert abs(cost - expected) < 0.0001
 
 
 # Golden tests would go in tests/golden/ with known input -> expected output

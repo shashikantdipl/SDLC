@@ -28,13 +28,11 @@ class G1CostTracker(BaseAgent):
 
     def __init__(
         self,
-        api_key: str | None = None,
         hooks: BaseHooks | None = None,
         dry_run: bool = False,
     ) -> None:
         super().__init__(
             agent_dir=Path(__file__).parent,
-            api_key=api_key,
             hooks=hooks,
             dry_run=dry_run,
         )

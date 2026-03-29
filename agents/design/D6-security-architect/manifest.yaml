@@ -1,0 +1,147 @@
+# D6-security-architect — Security Architecture Document
+# Step 6 in the 24-step pipeline. Completes Phase B (Decomposition).
+# Reads PRD (02) + ARCH (03) + QUALITY (05) + FEATURES (04).
+# Feeds: ENFORCEMENT (15), INFRA (16), MIGRATION (17), TESTING (18),
+#        FAULT-TOLERANCE (19), GUARDRAILS (20), COMPLIANCE (21).
+# New in v2 — was not in original 14-doc stack.
+
+identity:
+  id: D6-security-architect
+  name: Security Architect
+  version: "1.0.0"
+  description: "Generates security architecture — data classification, authentication flows per interface, RBAC matrix, agent permission model (least-privilege for 48 agents), secrets management, STRIDE threat model, OWASP Top 10 mitigations, data governance policies, supply chain security (SBOM), and compliance scope mapping"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [security, auth, rbac, threat-model, stride, owasp, compliance, data-governance, sbom]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, components, data_entities]
+    properties:
+      project_name:
+        type: string
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            role:
+              type: string
+            primary_interface:
+              type: string
+        description: "Personas from PRD with roles and interface preferences"
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+            port:
+              type: integer
+        description: "System components from ARCH"
+      data_entities:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            source:
+              type: string
+            sensitivity:
+              type: string
+              enum: [public, internal, confidential, restricted]
+        description: "Data entities with sensitivity from BRD data inventory"
+      security_nfrs:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            rule:
+              type: string
+        description: "Security NFRs (Q-NNN) from Quality (Doc 05)"
+      interfaces:
+        type: array
+        items:
+          type: string
+        description: "Interface types present"
+      regulatory:
+        type: array
+        items:
+          type: string
+        description: "Applicable regulatory frameworks"
+      agent_count:
+        type: integer
+        default: 48
+        description: "Number of AI agents in the platform"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 11
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/security-arch-v1.json
+  channels: [stdout]
+  writes_to: security_arch
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc, arch_doc, quality_doc, feature_catalog]
+    writes: [audit_trail, security_arch]
+  regulations: [SOC2, GDPR, AI_ACT, OWASP]

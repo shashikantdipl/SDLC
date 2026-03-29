@@ -1,0 +1,137 @@
+# D7-interaction-map-generator — Interaction Map (THE KEY Full-Stack-First doc)
+# Step 7 in the 24-step pipeline. First doc in Phase C (Interface Design).
+# Reads PRD (02) + ARCH (03) + FEATURES (04) + QUALITY (05).
+# THE CONTRACT between MCP-TOOL-SPEC (08) and DESIGN-SPEC (09).
+# Defines shared data shapes and interaction IDs so the parallel sprint
+# (Steps 8+9) doesn't diverge. Unique to Full-Stack-First approach.
+
+identity:
+  id: D7-interaction-map-generator
+  name: Interaction Map Generator
+  version: "1.0.0"
+  description: "Generates the interaction map — shared data shapes, I-NNN interaction IDs, cross-interface journeys, naming conventions, and parity matrix that coordinate MCP-TOOL-SPEC and DESIGN-SPEC in parallel"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [interaction-map, data-shapes, coordination, full-stack-first, parity, mcp, dashboard]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, capabilities, features, components]
+    properties:
+      project_name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        description: "Capability clusters from PRD"
+      features:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            interfaces:
+              type: array
+              items:
+                type: string
+            shared_service:
+              type: string
+        description: "Features from FEATURE-CATALOG with interface tags"
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+        description: "Services and components from ARCH"
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            primary_interface:
+              type: string
+        description: "Personas with interface preferences"
+      data_entities:
+        type: array
+        items:
+          type: string
+        description: "Key data entities"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 7
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/interaction-map-v1.json
+  channels: [stdout]
+  writes_to: interaction_map
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_parity_gap
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc, arch_doc, feature_catalog, quality_doc]
+    writes: [audit_trail, interaction_map]
+  regulations: []

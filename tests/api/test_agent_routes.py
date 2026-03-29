@@ -193,7 +193,7 @@ class TestInvokeAgent:
 
         resp = await client.post(
             "/api/v1/agents/architect-agent/invoke",
-            json={"action": "generate", "params": {"doc": "03-ARCH"}},
+            json={"input_text": "generate architecture for 03-ARCH"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
@@ -202,8 +202,7 @@ class TestInvokeAgent:
         assert body["data"]["status"] == "success"
         mock_svc.invoke_agent.assert_called_once_with(
             agent_id="architect-agent",
-            action="generate",
-            params={"doc": "03-ARCH"},
+            input_text="generate architecture for 03-ARCH",
         )
 
 
@@ -215,7 +214,7 @@ class TestGetAgentHealth:
     @pytest.mark.asyncio
     async def test_health_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.get_agent_health.return_value = AgentHealth(
+        mock_svc.check_health.return_value = AgentHealth(
             agent_id="architect-agent",
             status=AgentStatus.ACTIVE,
             last_heartbeat=NOW,
@@ -243,7 +242,7 @@ class TestPromoteAgent:
     @pytest.mark.asyncio
     async def test_promote_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.promote_agent.return_value = AgentVersion(
+        mock_svc.promote_version.return_value = AgentVersion(
             agent_id="architect-agent",
             active_version="2.0.0",
             canary_version=None,
@@ -255,17 +254,16 @@ class TestPromoteAgent:
 
         resp = await client.post(
             "/api/v1/agents/architect-agent/promote",
-            json={"target_level": "expert", "promoted_by": "admin"},
+            json={"new_version": "2.0.0"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["active_version"] == "2.0.0"
         assert body["data"]["previous_version"] == "1.0.0"
-        mock_svc.promote_agent.assert_called_once_with(
+        mock_svc.promote_version.assert_called_once_with(
             agent_id="architect-agent",
-            target_level="expert",
-            promoted_by="admin",
+            new_version="2.0.0",
         )
 
     @pytest.mark.asyncio
@@ -273,12 +271,12 @@ class TestPromoteAgent:
         from services.agent_service import AgentNotFoundError
 
         mock_svc = AsyncMock()
-        mock_svc.promote_agent.side_effect = AgentNotFoundError("not found")
+        mock_svc.promote_version.side_effect = AgentNotFoundError("not found")
         app["agent_service"] = mock_svc
 
         resp = await client.post(
             "/api/v1/agents/missing-agent/promote",
-            json={"target_level": "expert"},
+            json={"new_version": "2.0.0"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 404
@@ -292,7 +290,7 @@ class TestRollbackAgent:
     @pytest.mark.asyncio
     async def test_rollback_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.rollback_agent.return_value = AgentVersion(
+        mock_svc.rollback_version.return_value = AgentVersion(
             agent_id="architect-agent",
             active_version="1.0.0",
             canary_version=None,
@@ -304,16 +302,13 @@ class TestRollbackAgent:
 
         resp = await client.post(
             "/api/v1/agents/architect-agent/rollback",
-            json={"target_version": "1.0.0", "reason": "regression"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["active_version"] == "1.0.0"
-        mock_svc.rollback_agent.assert_called_once_with(
+        mock_svc.rollback_version.assert_called_once_with(
             agent_id="architect-agent",
-            target_version="1.0.0",
-            reason="regression",
         )
 
 
@@ -325,11 +320,11 @@ class TestSetCanary:
     @pytest.mark.asyncio
     async def test_set_canary_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.set_canary.return_value = AgentVersion(
+        mock_svc.set_canary_traffic.return_value = AgentVersion(
             agent_id="architect-agent",
             active_version="1.0.0",
             canary_version="2.0.0",
-            canary_traffic_pct=20,
+            canary_traffic_pct=25,
             previous_version=None,
             updated_at=NOW,
         )
@@ -337,15 +332,15 @@ class TestSetCanary:
 
         resp = await client.patch(
             "/api/v1/agents/architect-agent/canary",
-            json={"weight": 20},
+            json={"percentage": 25},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
         body = await resp.json()
-        assert body["data"]["canary_traffic_pct"] == 20
-        mock_svc.set_canary.assert_called_once_with(
+        assert body["data"]["canary_traffic_pct"] == 25
+        mock_svc.set_canary_traffic.assert_called_once_with(
             agent_id="architect-agent",
-            weight=20,
+            percentage=25,
         )
 
 
@@ -357,7 +352,7 @@ class TestGetAgentMaturity:
     @pytest.mark.asyncio
     async def test_maturity_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.get_agent_maturity.return_value = AgentMaturity(
+        mock_svc.get_maturity.return_value = AgentMaturity(
             agent_id="architect-agent",
             maturity=MaturityLevel.PROFESSIONAL,
             golden_tests_passed=45,

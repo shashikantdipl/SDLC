@@ -77,26 +77,31 @@ class TestAgentShapes:
     """Validate Agent-related shapes."""
 
     def test_agent_summary(self):
+        from schemas.data_shapes import AgentPhase, AgentStatus, MaturityLevel
         summary = AgentSummary(
             agent_id="G1-cost-tracker",
             name="Cost Tracker",
-            phase="govern",
-            status="active",
+            phase=AgentPhase.GOVERN,
+            status=AgentStatus.ACTIVE,
             model="claude-haiku-4-5-20251001",
             archetype="governance",
+            active_version="1.0.0",
+            maturity=MaturityLevel.PROFESSIONAL,
         )
         assert summary.agent_id == "G1-cost-tracker"
-        assert summary.phase == "govern"
+        assert summary.phase == AgentPhase.GOVERN
 
     def test_agent_health(self):
+        from schemas.data_shapes import AgentStatus
         health = AgentHealth(
             agent_id="G1-cost-tracker",
-            healthy=True,
-            last_check=NOW,
-            error_rate=0.002,
+            status=AgentStatus.ACTIVE,
+            last_heartbeat=NOW,
+            error_rate_1h=0.002,
             avg_latency_ms=3500,
+            invocations_1h=10,
         )
-        assert health.healthy is True
+        assert health.status == AgentStatus.ACTIVE
 
     def test_agent_version(self):
         version = AgentVersion(
@@ -114,13 +119,15 @@ class TestCostShapes:
     """Validate Cost-related shapes."""
 
     def test_budget_status(self):
+        from schemas.data_shapes import BudgetScope
         budget = BudgetStatus(
-            scope="project",
+            scope=BudgetScope.PROJECT,
             scope_id="proj-001",
             budget_usd=Decimal("20.00"),
             spent_usd=Decimal("5.50"),
             remaining_usd=Decimal("14.50"),
             utilization_pct=27.5,
+            period="2026-03",
         )
         assert budget.utilization_pct == 27.5
 

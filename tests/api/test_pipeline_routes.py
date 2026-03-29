@@ -253,7 +253,9 @@ class TestResumePipeline:
 
         mock_svc = AsyncMock()
         mock_svc.resume_pipeline.side_effect = PipelineStateError(
-            "Cannot resume pipeline in pending state"
+            run_id=RUN_ID,
+            current_status="pending",
+            attempted_action="resume",
         )
         app["pipeline_service"] = mock_svc
 
@@ -294,7 +296,9 @@ class TestCancelPipeline:
 
         mock_svc = AsyncMock()
         mock_svc.cancel_pipeline.side_effect = PipelineStateError(
-            "Cannot cancel completed pipeline"
+            run_id=RUN_ID,
+            current_status="completed",
+            attempted_action="cancel",
         )
         app["pipeline_service"] = mock_svc
 

@@ -79,7 +79,7 @@ def _sample_pipeline_run(**overrides) -> PipelineRun:
         pipeline_name="document-stack",
         status=PipelineStatus.PENDING,
         current_step=0,
-        total_steps=14,
+        total_steps=22,
         triggered_by="test",
         started_at=datetime.now(tz=timezone.utc),
         completed_at=None,

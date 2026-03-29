@@ -38,7 +38,7 @@ def _make_run(**overrides) -> PipelineRun:
         pipeline_name="document-stack",
         status=PipelineStatus.PENDING,
         current_step=0,
-        total_steps=14,
+        total_steps=22,
         triggered_by="tester",
         started_at=NOW,
         completed_at=None,

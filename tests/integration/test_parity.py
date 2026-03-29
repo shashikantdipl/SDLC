@@ -43,7 +43,7 @@ def _make_pipeline_run() -> PipelineRun:
         pipeline_name="document-stack",
         status=PipelineStatus.RUNNING,
         current_step=3,
-        total_steps=14,
+        total_steps=22,
         triggered_by="priya",
         started_at=NOW,
         completed_at=None,

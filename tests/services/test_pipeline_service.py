@@ -39,7 +39,7 @@ class TestTrigger:
         assert run.pipeline_name == "document-stack"
         assert run.status == PipelineStatus.PENDING
         assert run.current_step == 0
-        assert run.total_steps == 14
+        assert run.total_steps == 22  # 24-doc stack: 22 generation steps (D0-D21)
         assert run.triggered_by == "priya"
 
     @pytest.mark.asyncio
@@ -191,7 +191,7 @@ class TestGetConfig:
     async def test_get_document_stack_config(self, service: PipelineService):
         config = await service.get_config("document-stack")
         assert config.pipeline_name == "document-stack"
-        assert len(config.steps) == 14
+        assert len(config.steps) == 22  # 24-doc stack: 22 generation steps (D0-D21)
         assert config.cost_ceiling_usd == 25
         assert len(config.parallel_groups) == 4
 

@@ -75,7 +75,7 @@ class TestJourney1PipelineWithApprovalGate:
         svc.trigger.return_value = PipelineRun(
             run_id=RUN_ID, project_id=PROJECT_ID,
             pipeline_name="document-stack", status=PipelineStatus.RUNNING,
-            current_step=0, total_steps=14,
+            current_step=0, total_steps=22,
             triggered_by="priya", started_at=NOW, cost_usd=Decimal("0.00"),
         )
         # Step 3: I-002 get_status (running, then paused, then completed)
@@ -84,21 +84,21 @@ class TestJourney1PipelineWithApprovalGate:
             PipelineRun(
                 run_id=RUN_ID, project_id=PROJECT_ID,
                 pipeline_name="document-stack", status=PipelineStatus.RUNNING,
-                current_step=3, total_steps=14,
+                current_step=3, total_steps=22,
                 triggered_by="priya", started_at=NOW, cost_usd=Decimal("0.75"),
             ),
             # Second poll: paused at gate (step 6)
             PipelineRun(
                 run_id=RUN_ID, project_id=PROJECT_ID,
                 pipeline_name="document-stack", status=PipelineStatus.PAUSED,
-                current_step=6, total_steps=14,
+                current_step=6, total_steps=22,
                 triggered_by="priya", started_at=NOW, cost_usd=Decimal("1.50"),
             ),
             # After approval: completed
             PipelineRun(
                 run_id=RUN_ID, project_id=PROJECT_ID,
                 pipeline_name="document-stack", status=PipelineStatus.COMPLETED,
-                current_step=14, total_steps=14,
+                current_step=14, total_steps=22,
                 triggered_by="priya", started_at=NOW,
                 completed_at=NOW + timedelta(minutes=30),
                 cost_usd=Decimal("4.20"),
@@ -182,7 +182,7 @@ class TestJourney1PipelineWithApprovalGate:
         # -- Step 7-8 (MCP): Priya checks status -> completed (I-002) --
         final = await pipeline_service.get_status(RUN_ID)
         assert final.status == PipelineStatus.COMPLETED
-        assert final.current_step == 14
+        assert final.current_step == 22
         assert final.cost_usd == Decimal("4.20")
 
     @pytest.mark.asyncio

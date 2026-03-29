@@ -19,9 +19,8 @@ class TestG1DryRun:
 
     @pytest.mark.asyncio
     async def test_dry_run_returns_result(self):
-        from agents.govern.G1_cost_tracker.agent import G1CostTracker
-        # Note: Python can't import hyphenated dirs, we need to handle this
-        # For now, test with BaseAgent directly
+        # Hyphenated directory (G1-cost-tracker) can't be imported as Python module.
+        # Use BaseAgent directly — this is the correct pattern for all agents.
         from sdk.base_agent import BaseAgent
 
         agent = BaseAgent(

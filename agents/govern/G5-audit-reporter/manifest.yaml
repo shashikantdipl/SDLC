@@ -1,0 +1,97 @@
+# G5-audit-reporter — Audit summary report generation
+# Completes the GOVERN phase (5/5). Generates human-readable
+# audit summaries for stakeholders, compliance officers, and management.
+
+identity:
+  id: G5-audit-reporter
+  name: Audit Reporter
+  version: "1.0.0"
+  description: "Generates human-readable audit summary reports from raw audit trail data — executive summaries, compliance status, cost analysis, agent performance, and risk highlights for stakeholder review"
+  owner: platform-team
+  phase: govern
+  extends: governance
+  mixins: []
+  tags: [audit, reporting, governance, compliance, summary]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_id, report_type]
+    properties:
+      project_id:
+        type: string
+        description: "Project to generate audit report for"
+      report_type:
+        type: string
+        enum: [executive, compliance, cost, agent_performance, pipeline_health, full]
+        description: "Type of audit report to generate"
+      period_days:
+        type: integer
+        default: 30
+        description: "Number of days to cover in the report"
+      audience:
+        type: string
+        enum: [management, compliance_officer, engineering, all]
+        default: all
+        description: "Target audience — adjusts detail level and language"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/audit-report.schema.json
+  channels: [stdout]
+  writes_to: audit_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.05
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.04
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [audit_events, cost_metrics, agent_registry, pipeline_runs, pipeline_steps, approval_requests]
+    writes: [audit_trail, audit_report]
+  regulations: [SOC2, AI_ACT]

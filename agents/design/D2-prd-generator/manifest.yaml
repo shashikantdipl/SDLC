@@ -1,0 +1,136 @@
+# D2-prd-generator — Product Requirements Document
+# Step 2 in the 24-step pipeline (parallel with D1-roadmap in Group A).
+# The MOST REFERENCED document — consumed by Docs 03, 04, 05, 06, 07,
+# 09, 11, 12, 13, 17. Defines WHAT we build and FOR WHOM.
+# Uses balanced tier — needs strong reasoning for persona and journey design.
+
+identity:
+  id: D2-prd-generator
+  name: PRD Generator
+  version: "1.0.0"
+  description: "Generates Product Requirements Documents — problem statement, success metrics, personas with interface preferences, user journeys across MCP and dashboard, capability clusters, and explicit out-of-scope items"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [prd, requirements, product, personas, journeys, capabilities]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, project_purpose]
+    properties:
+      project_name:
+        type: string
+      project_purpose:
+        type: string
+        description: "One paragraph — what the project does and why"
+      brd_summary:
+        type: object
+        description: "Key outputs from BRD (Doc 00)"
+        properties:
+          business_requirements:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                text:
+                  type: string
+                priority:
+                  type: string
+                acceptance_criteria:
+                  type: string
+          stakeholders:
+            type: array
+            items:
+              type: object
+          success_criteria:
+            type: array
+            items:
+              type: string
+          constraints:
+            type: object
+          data_inventory:
+            type: array
+            items:
+              type: object
+          integration_points:
+            type: array
+            items:
+              type: object
+      target_users:
+        type: array
+        items:
+          type: object
+          properties:
+            role:
+              type: string
+            count:
+              type: integer
+            tech_comfort:
+              type: string
+              enum: [low, medium, high, very_high]
+        description: "Who will use the system"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/prd-v1.json
+  channels: [stdout]
+  writes_to: prd_doc
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [brd_doc, raw_spec]
+    writes: [audit_trail, prd_doc]
+  regulations: []

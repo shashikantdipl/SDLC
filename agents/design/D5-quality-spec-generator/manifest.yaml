@@ -1,0 +1,142 @@
+# D5-quality-spec-generator — Quality Specification (NFRs + SLI/SLO)
+# Step 5 in the 24-step pipeline. Second doc in Phase B.
+# Reads PRD (Doc 02) + ARCH (Doc 03) + FEATURES (Doc 04).
+# FEATURES must come FIRST — enables per-module coverage thresholds.
+# Upgraded in v2: per-module thresholds, SLI/SLO summary, quality rubric.
+
+identity:
+  id: D5-quality-spec-generator
+  name: Quality Spec Generator
+  version: "2.0.0"
+  description: "Generates non-functional requirements (Q-NNN) with per-module coverage thresholds driven by Feature Catalog epic boundaries, SLI/SLO definitions, quality scoring rubric, and compliance matrix"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [quality, nfr, performance, reliability, security, coverage, sli, slo]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, success_metrics, components]
+    properties:
+      project_name:
+        type: string
+      success_metrics:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            target:
+              type: string
+            verification:
+              type: string
+        description: "Success metrics from PRD (SM-01 to SM-N)"
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+        description: "System components from ARCH"
+      feature_summary:
+        type: object
+        description: "META from Feature Catalog (Doc 04)"
+        properties:
+          total_features:
+            type: integer
+          total_story_points:
+            type: integer
+          epics:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                story_points:
+                  type: integer
+                ai_feature_count:
+                  type: integer
+          ai_features_count:
+            type: integer
+      interfaces:
+        type: array
+        items:
+          type: string
+        description: "Interface types (mcp, rest, dashboard)"
+      regulatory:
+        type: array
+        items:
+          type: string
+        description: "Regulatory frameworks (SOC2, GDPR, DOT, EU AI Act)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/quality-spec-v1.json
+  channels: [stdout]
+  writes_to: quality_doc
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_compliance_nfr
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc, arch_doc, feature_catalog]
+    writes: [audit_trail, quality_doc]
+  regulations: [SOC2, GDPR, AI_ACT]

@@ -1,0 +1,167 @@
+# D0-brd-generator — Business Requirements Document generator
+# Step 0 in the 24-step pipeline. The FIRST document generated.
+# Everything downstream depends on this. Uses powerful tier (opus-class)
+# because business requirements demand deep reasoning and stakeholder analysis.
+
+identity:
+  id: D0-brd-generator
+  name: BRD Generator
+  version: "1.0.0"
+  description: "Generates Business Requirements Documents from discovery sessions — executive summary, business case with ROI, stakeholder map, BR-NNN requirements, constraints, data inventory, integration points, success criteria, and open questions tracker"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [brd, requirements, business, discovery, pre-phase, foundation]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, project_purpose]
+    properties:
+      project_name:
+        type: string
+        description: "Name of the project"
+      project_purpose:
+        type: string
+        description: "One paragraph describing what the project does and why"
+      discovery_sessions:
+        type: array
+        items:
+          type: object
+          properties:
+            persona:
+              type: string
+              description: "Role of the person interviewed"
+            name:
+              type: string
+            findings:
+              type: array
+              items:
+                type: string
+              description: "Key findings from the session"
+            pain_points:
+              type: array
+              items:
+                type: string
+            goals:
+              type: array
+              items:
+                type: string
+        description: "Outputs from persona-based discovery sessions"
+      client_documents:
+        type: array
+        items:
+          type: string
+        description: "References to client-provided docs (contracts, SLAs, existing specs)"
+      existing_systems:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+            purpose:
+              type: string
+            pain_points:
+              type: array
+              items:
+                type: string
+        description: "Current systems inventory"
+      constraints:
+        type: object
+        properties:
+          budget:
+            type: string
+          timeline:
+            type: string
+          regulatory:
+            type: array
+            items:
+              type: string
+          technology:
+            type: array
+            items:
+              type: string
+        description: "Known constraints"
+      stakeholders:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            title:
+              type: string
+            role:
+              type: string
+              enum: [sponsor, decision_maker, sme, end_user]
+            interest:
+              type: string
+              enum: [high, medium, low]
+            influence:
+              type: string
+              enum: [high, medium, low]
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/brd-v1.json
+  channels: [stdout]
+  writes_to: brd_doc
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 2.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 1.50
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [discovery_sessions, client_documents]
+    writes: [audit_trail, brd_doc]
+  regulations: [SOC2, GDPR]

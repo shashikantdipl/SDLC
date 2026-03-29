@@ -38,7 +38,7 @@ class AnthropicProvider(LLMProvider):
         self._client = AsyncAnthropic(
             api_key=config.api_key,
             base_url=config.base_url or None,
-            timeout=config.timeout_seconds,
+            timeout=max(config.timeout_seconds, 300.0),  # Min 300s for large outputs (Opus BRD etc)
             max_retries=config.max_retries,
         )
 

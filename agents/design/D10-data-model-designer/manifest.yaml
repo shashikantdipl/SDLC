@@ -1,0 +1,132 @@
+# D10-data-model-designer — Database Schema Design
+# Step 10 in 24-step pipeline. First doc in Phase D (Data & Build-Facing).
+# Reads ARCH (03) + FEATURES (04) + QUALITY (05) + MCP-TOOL-SPEC (08)
+#   + DESIGN-SPEC (09) + INTERACTION-MAP (07).
+# Consumes BOTH parallel sprint outputs — schema serves MCP AND dashboard.
+# Uses balanced tier for complex schema reasoning.
+
+identity:
+  id: D10-data-model-designer
+  name: Data Model Designer
+  version: "1.0.0"
+  description: "Generates database schema — PostgreSQL DDL with tables, indexes optimized for MCP tool queries AND dashboard display queries, RLS policies, data shape-to-table mapping, query pattern registry, capacity estimates, and migration strategy"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [data-model, database, schema, ddl, indexes, rls, migration, postgresql]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, data_entities, data_shapes]
+    properties:
+      project_name:
+        type: string
+      data_entities:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            source:
+              type: string
+            sensitivity:
+              type: string
+            estimated_volume:
+              type: string
+        description: "Data entities from BRD data inventory with sensitivity classification"
+      data_shapes:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            fields:
+              type: array
+              items:
+                type: string
+        description: "Data shapes from INTERACTION-MAP — schema must support ALL shapes"
+      mcp_query_patterns:
+        type: array
+        items:
+          type: string
+        description: "Query patterns from MCP tools (e.g., WHERE phase=$1 AND status=$2)"
+      dashboard_query_patterns:
+        type: array
+        items:
+          type: string
+        description: "Query patterns from Dashboard screens (e.g., ORDER BY cost DESC LIMIT 50)"
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+        description: "Database technology from ARCH"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 9
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/data-model-v1.json
+  channels: [stdout]
+  writes_to: data_model
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_schema_change
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [arch_doc, feature_catalog, quality_doc, mcp_tool_spec, design_spec, interaction_map]
+    writes: [audit_trail, data_model]
+  regulations: []

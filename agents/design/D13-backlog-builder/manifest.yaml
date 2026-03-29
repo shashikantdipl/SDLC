@@ -1,0 +1,150 @@
+# D13-backlog-builder — Sprint-Ready Developer Backlog
+# Step 13 in 24-step pipeline. Phase D (Data & Build-Facing).
+# Reads FEATURES (04) + PRD (02) + ARCH (03) + QUALITY (05) +
+#   MCP-TOOL-SPEC (08) + DESIGN-SPEC (09) + INTERACTION-MAP (07) + USER-STORIES (12).
+# DEVELOPER-FACING — transforms client-facing user stories into
+# sprint-ready implementation tasks with technical acceptance criteria.
+
+identity:
+  id: D13-backlog-builder
+  name: Backlog Builder
+  version: "1.0.0"
+  description: "Generates sprint-ready developer backlog — S-NNN stories with INVEST principles, Given/When/Then ACs referencing API endpoints and data entities, story points, sprint assignments, dependency ordering, and definition of done per story"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [backlog, sprint, stories, invest, agile, planning, dependencies]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, features, user_stories]
+    properties:
+      project_name:
+        type: string
+      features:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            epic:
+              type: string
+            moscow:
+              type: string
+            story_points:
+              type: integer
+            interfaces:
+              type: array
+              items:
+                type: string
+        description: "Features from FEATURE-CATALOG"
+      user_stories:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            epic:
+              type: string
+            story_points:
+              type: integer
+        description: "Client-facing stories from USER-STORIES (Doc 12)"
+      team_size:
+        type: integer
+        default: 3
+      sprint_length_weeks:
+        type: integer
+        default: 2
+      sprint_velocity:
+        type: integer
+        default: 40
+        description: "Story points per sprint"
+      api_endpoints:
+        type: array
+        items:
+          type: string
+        description: "REST endpoints from API-CONTRACTS for ACs"
+      data_entities:
+        type: array
+        items:
+          type: string
+        description: "Database tables from DATA-MODEL for ACs"
+      mcp_tools:
+        type: array
+        items:
+          type: string
+        description: "MCP tool names for MCP layer stories"
+      interaction_ids:
+        type: array
+        items:
+          type: string
+        description: "I-NNN interaction IDs from INTERACTION-MAP"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/backlog-v1.json
+  channels: [stdout]
+  writes_to: backlog
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_sprint_overflow
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [feature_catalog, prd_doc, arch_doc, quality_doc, mcp_tool_spec, design_spec, interaction_map, user_stories]
+    writes: [audit_trail, backlog]
+  regulations: []

@@ -1,5 +1,9 @@
-"""Agent route handlers (I-020 through I-027)."""
+"""Agent route handlers (I-020 through I-027).
+
+Thin wrappers around AgentService. No business logic here.
+"""
 from aiohttp import web
+import json
 
 from . import success_response
 
@@ -32,10 +36,11 @@ async def invoke_agent(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
     body = await request.json()
+    # Service expects input_text (string), not action+params
+    input_text = json.dumps(body) if not isinstance(body.get("input_text"), str) else body["input_text"]
     result = await svc.invoke_agent(
         agent_id=agent_id,
-        action=body["action"],
-        params=body.get("params", {}),
+        input_text=input_text,
     )
     return success_response(result.model_dump(mode="json"))
 
@@ -46,50 +51,44 @@ async def invoke_agent(request: web.Request) -> web.Response:
 async def get_agent_health(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
-    result = await svc.get_agent_health(agent_id=agent_id)
+    result = await svc.check_health(agent_id=agent_id)
     return success_response(result.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------
-# I-024  POST /api/v1/agents/{agent_id}/promote  -- promote agent
+# I-024  POST /api/v1/agents/{agent_id}/promote  -- promote agent version
 # ---------------------------------------------------------------------------
 async def promote_agent(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
     body = await request.json()
-    result = await svc.promote_agent(
+    result = await svc.promote_version(
         agent_id=agent_id,
-        target_level=body["target_level"],
-        promoted_by=body.get("promoted_by"),
+        new_version=body["new_version"],
     )
     return success_response(result.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------
-# I-025  POST /api/v1/agents/{agent_id}/rollback  -- rollback agent
+# I-025  POST /api/v1/agents/{agent_id}/rollback  -- rollback agent version
 # ---------------------------------------------------------------------------
 async def rollback_agent(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
-    body = await request.json()
-    result = await svc.rollback_agent(
-        agent_id=agent_id,
-        target_version=body.get("target_version"),
-        reason=body.get("reason"),
-    )
+    result = await svc.rollback_version(agent_id=agent_id)
     return success_response(result.model_dump(mode="json"))
 
 
 # ---------------------------------------------------------------------------
-# I-026  PATCH /api/v1/agents/{agent_id}/canary  -- set canary weight
+# I-026  PATCH /api/v1/agents/{agent_id}/canary  -- set canary traffic
 # ---------------------------------------------------------------------------
 async def set_canary(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
     body = await request.json()
-    result = await svc.set_canary(
+    result = await svc.set_canary_traffic(
         agent_id=agent_id,
-        weight=body["weight"],
+        percentage=body["percentage"],
     )
     return success_response(result.model_dump(mode="json"))
 
@@ -100,7 +99,7 @@ async def set_canary(request: web.Request) -> web.Response:
 async def get_agent_maturity(request: web.Request) -> web.Response:
     svc = request.app["agent_service"]
     agent_id = request.match_info["agent_id"]
-    result = await svc.get_agent_maturity(agent_id=agent_id)
+    result = await svc.get_maturity(agent_id=agent_id)
     return success_response(result.model_dump(mode="json"))
 
 

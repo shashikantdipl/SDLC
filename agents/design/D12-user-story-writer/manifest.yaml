@@ -1,0 +1,143 @@
+# D12-user-story-writer — Client-Facing User Stories
+# Step 12 in 24-step pipeline. Phase D (Data & Build-Facing).
+# Reads PRD (02) + FEATURES (04) + QUALITY (05) + ARCH (03) +
+#   DATA-MODEL (10) + API-CONTRACTS (11) + MCP-TOOL-SPEC (08) + DESIGN-SPEC (09).
+# CLIENT-FACING — written for product owners, NOT developers.
+# Different from BACKLOG (Doc 13) which is developer-facing with sprint assignments.
+# New in v2 — added by senior architects.
+
+identity:
+  id: D12-user-story-writer
+  name: User Story Writer
+  version: "1.0.0"
+  description: "Generates client-facing user stories — US-DOMAIN-NNN format with persona-based human stories, system stories with acceptance criteria referencing actual API endpoints and data entities, parking lot for deferred items, and domain glossary"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [user-stories, stories, client-facing, personas, acceptance-criteria, domain]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, features, personas]
+    properties:
+      project_name:
+        type: string
+      features:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            epic:
+              type: string
+            moscow:
+              type: string
+            story_points:
+              type: integer
+            primary_personas:
+              type: array
+              items:
+                type: string
+        description: "Features from FEATURE-CATALOG"
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            role:
+              type: string
+            goals:
+              type: array
+              items:
+                type: string
+            primary_interface:
+              type: string
+        description: "Personas from PRD"
+      api_endpoints:
+        type: array
+        items:
+          type: string
+        description: "REST endpoints from API-CONTRACTS for system story SACs"
+      data_entities:
+        type: array
+        items:
+          type: string
+        description: "Database entities from DATA-MODEL for system story SACs"
+      mcp_tools:
+        type: array
+        items:
+          type: string
+        description: "MCP tool names for MCP-path stories"
+      quality_thresholds:
+        type: array
+        items:
+          type: string
+        description: "Key Q-NNN thresholds for acceptance criteria"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/user-stories-v1.json
+  channels: [stdout]
+  writes_to: user_stories
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc, feature_catalog, quality_doc, arch_doc, data_model, api_contracts, mcp_tool_spec, design_spec]
+    writes: [audit_trail, user_stories]
+  regulations: []

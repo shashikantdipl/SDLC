@@ -655,6 +655,41 @@ Services raise typed exceptions. Each interface layer maps them to protocol-appr
 
 **Fail-Safe Principle:** If cost tracking or audit logging is unavailable, all agent invocations are blocked. The system fails closed, never open.
 
+### 8.5 Agent Memory Architecture
+
+| Memory Tier | Storage | Retention | Scope | Access Pattern |
+|---|---|---|---|---|
+| Short-term | LLM context window | Single invocation | Per-call | Automatic (prompt + response) |
+| Working | session_context table (PostgreSQL) | Pipeline run duration | Per-pipeline-run | SessionService.get/set |
+| Episodic | audit_events table | 1 year | Per-project | AuditService.query |
+| Semantic | knowledge_exceptions table | Permanent | Global | KnowledgeService.search |
+| Procedural | cost_metrics patterns | 90 days | Per-agent | CostService.get_patterns |
+
+**Isolation:** Each agent reads only its declared `memory.working` / `memory.episodic` / `memory.semantic` from manifest. Cross-agent memory access requires explicit session key declaration.
+
+### 8.6 LLM Provider Routing Layer
+
+**Architecture:** `BaseAgent -> LLMProvider (interface) -> [AnthropicProvider | OpenAIProvider | OllamaProvider]`
+
+| Component | File | Purpose |
+|---|---|---|
+| LLMProvider | sdk/llm/provider.py | Abstract interface: generate(), calculate_cost(), resolve_model() |
+| AnthropicProvider | sdk/llm/anthropic_provider.py | Claude models: Haiku, Sonnet, Opus |
+| OpenAIProvider | sdk/llm/openai_provider.py | GPT models: 4o-mini, 4o, 4.5 |
+| OllamaProvider | sdk/llm/ollama_provider.py | Local: Llama, Mistral (zero cost) |
+| Factory | sdk/llm/factory.py | create_provider(name) from env |
+
+**Tier mapping:** fast -> Haiku/GPT-4o-mini/Llama3.2 | balanced -> Sonnet/GPT-4o/Mistral | powerful -> Opus/GPT-4.5/Llama3.1-405b
+
+**Routing:** Manifest-driven (tier field) -> Environment-driven (LLM_PROVIDER) -> Fallback chain (circuit breaker after 5 failures).
+
+### 8.7 Knowledge Retrieval (RAG) Architecture
+
+- **Vector Store:** Per-project embeddings of Generated-Docs + codebase
+- **Chunking:** Document-level for specifications, function-level for code
+- **Retrieval:** KnowledgeService.search() -> vector similarity -> re-rank -> inject into agent context
+- **Isolation:** Per-project boundary — agents cannot access other projects' knowledge
+
 ---
 
 ## 9. Data Flow Diagrams

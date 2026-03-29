@@ -668,6 +668,34 @@ failover does not exceed 30s. [P1] [C]
 
 ---
 
+## 12b. Per-Module Coverage Thresholds
+
+| Module Category | Examples | Line Coverage | Branch Coverage | Rationale |
+|---|---|---|---|---|
+| AI Safety (guardrails, PII) | sdk/llm/, base_hooks.py pii_scan | >= 95% | >= 90% | Safety-critical — failures cause data leaks |
+| Core Business Logic | services/pipeline_service.py, cost_service.py | >= 90% | >= 85% | Revenue-critical — failures break pipelines |
+| Shared Services | services/audit_service.py, health_service.py | >= 85% | >= 80% | Reliability-critical |
+| MCP Handlers | mcp/agents_server.py, governance_server.py | >= 80% | >= 75% | Interface layer |
+| REST Handlers | api/routes/*.py | >= 80% | >= 75% | Interface layer |
+| Dashboard | dashboard/pages/*.py | >= 70% | >= 65% | UI — visual testing supplements |
+| Utilities | sdk/llm/factory.py, schemas/ | >= 60% | >= 55% | Low-risk helpers |
+
+---
+
+## 12c. SLI/SLO Summary
+
+| Service | SLI | SLO Target | Error Budget (monthly) | Measurement |
+|---|---|---|---|---|
+| MCP Servers | Request latency p99 | < 500ms | 0.1% requests can exceed | OpenTelemetry histogram |
+| REST API | Request latency p99 | < 200ms | 0.1% | OpenTelemetry histogram |
+| Dashboard | Page load time | < 3s | 1% pages can exceed | Lighthouse CI |
+| Pipeline | End-to-end completion | < 30min for 24-step pipeline | 1 failure per 20 runs | Pipeline completion events |
+| Agent Invocation | LLM response time | < 30s (fast tier) | 2% calls can exceed | Provider latency metric |
+| Cost Tracking | Budget accuracy | +/-5% of actual spend | N/A | Monthly reconciliation |
+| Audit Trail | Event capture latency | < 5s from action | 0.01% events delayed | Timestamp comparison |
+
+---
+
 ## 13. Compliance Matrix
 
 | NFR | SOC2 Trust Service Criteria | EU AI Act | Notes |

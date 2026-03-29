@@ -101,6 +101,25 @@ Q-NNN: [Category] — [Imperative rule with specific threshold]. Verify: [automa
 
     Every document output must pass the rubric before downstream documents can consume it.
 
+### Section: Per-Module Coverage Thresholds
+Coverage thresholds are NOT global — they vary by module complexity and risk:
+- AI guardrail modules (agent safety, PII detection): ≥ 95% line coverage
+- Core business logic (pipeline orchestration, cost enforcement): ≥ 90%
+- Shared services (CostService, AuditService): ≥ 85%
+- API routes and MCP handlers: ≥ 80%
+- Dashboard/UI components: ≥ 70%
+- Utilities and helpers: ≥ 60%
+
+Reference FEATURE-CATALOG epic groupings to assign modules to tiers.
+
+### Section: SLI/SLO Summary
+Formalize NFRs into operational Service Level Objectives:
+Table: Service | SLI (what to measure) | SLO (target) | Error Budget (allowed failures/month) | Measurement Method
+Example:
+- MCP Server | Request latency p99 | < 500ms | 0.1% of requests can exceed | OpenTelemetry histogram
+- Pipeline | End-to-end completion | < 30 min for 14-step pipeline | 1 failure per 20 runs | Pipeline completion event
+- Cost Tracker | Budget accuracy | ±5% of actual spend | N/A (accuracy metric) | Monthly reconciliation
+
 ### Quality Criteria
 - NFRs cover all 3 interfaces (MCP, REST, dashboard) in every applicable category
 - Shared service coverage is the highest threshold (it's the shared foundation)

@@ -2459,6 +2459,48 @@ jobs:
 
 ---
 
+### 3.10 `.claude/rules/10-prompt-versioning.md` — Prompt Versioning
+
+```markdown
+---
+description: Prompt versioning and quality gate enforcement for agent prompts
+globs: ["agents/**/prompt.md"]
+severity: error
+---
+
+# Prompt Versioning
+
+## Rules
+- Every prompt.md change requires version bump in accompanying manifest.yaml
+- SemVer: MAJOR (output schema change), MINOR (instruction refinement), PATCH (typo/formatting)
+- Before merging prompt changes: run golden tests, compare quality scores vs previous version
+- Quality regression > 5% blocks merge — requires G3-agent-lifecycle-manager review
+- Production deployments pin to specific model version via LLM_MODEL_OVERRIDE env var
+- No prompt changes without corresponding test updates
+```
+
+### 3.11 `.claude/rules/11-api-governance.md` — API Governance
+
+```markdown
+---
+description: API and MCP tool governance standards
+globs: ["api/**/*.py", "mcp/**/*.py"]
+severity: error
+---
+
+# API Governance
+
+## Rules
+- All REST endpoints use the standard envelope: `{"data": ..., "meta": {...}, "errors": [...]}`
+- All MCP tools follow naming: `{verb}_{noun}` (e.g., trigger_pipeline, get_cost_report)
+- API versioning in URL path: `/api/v1/` — increment major version on breaking changes
+- Deprecation policy: 2-sprint minimum warning before removing any endpoint or MCP tool
+- New endpoints require: OpenAPI spec entry + integration test + MCP parity check (if applicable)
+- Rate limits defined per endpoint — enforced by middleware, not ad-hoc
+```
+
+---
+
 ## 7. Rule Priority and Conflict Resolution
 
 When rules conflict, priority is (highest first):

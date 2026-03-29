@@ -62,6 +62,44 @@ Every feature in this catalog conforms to the following schema:
 
 ---
 
+## Structured Feature Schema (v2 — 18-Field JSON)
+
+Starting with v2, every feature in the catalog includes all 18 fields:
+
+```json
+{
+  "id": "F-NNN",
+  "title": "string",
+  "type": "user-facing | system | integration | ai-agent",
+  "epic": "E-NNN",
+  "summary": "string",
+  "status": "proposed | approved | in-progress | done",
+  "moscow": "Must-Have | Should-Have | Could-Have | Won't-Have",
+  "priority": 1,
+  "story_points": 5,
+  "effort": "M",
+  "complexity": "medium",
+  "sprint_or_phase": "Sprint 1",
+  "friction": "Low",
+  "incentive_type": "Carrot",
+  "ai_required": true,
+  "primary_personas": ["Priya Chen"],
+  "dependencies": ["F-001"],
+  "data_prerequisites": ["agent_registry"]
+}
+```
+
+**New fields added in v2:**
+- `ai_required` (boolean): Does this feature require LLM/ML? Drives module-aware coverage thresholds in QUALITY.md
+- `friction` (High/Med/Low/Neutral): Adoption friction for end users
+- `incentive_type` (Carrot/Stick/Neutral): What motivates usage
+- `type` now includes "ai-agent" for features specific to LLM-powered functionality
+
+**META.json summary:**
+Total features: 58 | By MoSCoW: Must-Have: 28, Should-Have: 18, Could-Have: 12 | AI features: 15 | Total story points: ~580
+
+---
+
 ## E-001: Pipeline Execution
 
 **Capabilities:** C2 (12-Document Generation Pipeline), C8 (Pipeline Resilience)

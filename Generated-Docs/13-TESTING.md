@@ -2679,6 +2679,47 @@ class TestAnthropicProvider:
 
 ---
 
+## 10B. LLM Evaluation Framework
+
+Testing for non-deterministic agent outputs:
+
+| Test Type | What It Checks | Tool | Pass Criteria |
+|---|---|---|---|
+| Golden Path | Fixed input -> output matches JSON schema | pytest + jsonschema | 100% schema compliance |
+| Quality Scoring | LLM-as-Judge rates: schema, completeness, faithfulness, consistency | Custom eval harness | All scores >= 0.85 |
+| Prompt Regression | Before/after prompt change -> compare scores | Diff quality scores | No score drops > 5% |
+| Adversarial | Prompt injection, oversized input, malformed JSON | Adversarial test suite | All attacks blocked |
+| Provider Portability | Same agent on Anthropic vs OpenAI | Cross-provider runner | Schema compliance matches |
+
+**Quality Scoring Dimensions:**
+- **Schema Compliance (0-1):** Does output match expected JSON structure?
+- **Completeness (0-1):** Are all required sections present?
+- **Faithfulness (0-1):** Does output reference actual input data (not hallucinated)?
+- **Consistency (0-1):** Does output match previous runs within tolerance?
+
+Golden outputs stored per prompt version in `agents/{id}/tests/golden/`.
+
+---
+
+## 10C. Production Readiness Gate (Go-Live Checklist)
+
+Before any agent or service deploys to production:
+
+- [ ] All golden tests pass on target model and provider
+- [ ] Quality score >= 0.85 on all 4 evaluation dimensions
+- [ ] Security review completed (controls from 17-SECURITY-ARCH verified)
+- [ ] Observability instrumented (metrics, logs, traces per 19-INFRA-DESIGN)
+- [ ] Runbook exists for P0/P1 failure scenarios (from 21-FAULT-TOLERANCE)
+- [ ] SLOs defined and measurable (from 04-QUALITY SLI/SLO section)
+- [ ] On-call rotation staffed for this component
+- [ ] Rollback procedure tested in staging
+- [ ] Cost estimate within agent budget (safety.max_budget_usd)
+- [ ] Compliance controls documented in 23-COMPLIANCE-MATRIX
+
+**Gate enforcement:** G3-agent-lifecycle-manager validates checklist before promotion to production.
+
+---
+
 ## 11. Performance Tests
 
 ### 11.1 NFR Mapping

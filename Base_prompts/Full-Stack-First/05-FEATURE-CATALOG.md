@@ -79,6 +79,45 @@ Each feature MUST include:
 - `depends_on`: array of F-NNN IDs
 - `acceptance_criteria`: array of testable statements
 
+### Section: Structured Feature Schema (18-Field JSON)
+Each feature MUST include ALL 18 fields in JSON output:
+
+```json
+{
+  "id": "F-NNN",
+  "title": "string",
+  "type": "user-facing | system | integration | ai-agent",
+  "epic": "E-NNN",
+  "summary": "One-line description",
+  "status": "proposed | approved | in-progress | done",
+  "moscow": "Must-Have | Should-Have | Could-Have | Won't-Have",
+  "priority": 1-5,
+  "story_points": "Fibonacci (1,2,3,5,8,13,21) — split if > 21",
+  "effort": "S | M | L | XL",
+  "complexity": "low | medium | high",
+  "sprint_or_phase": "Sprint N or Phase name",
+  "friction": "High | Med | Low | Neutral — adoption friction for end users",
+  "incentive_type": "Carrot | Stick | Neutral — what motivates use",
+  "ai_required": "boolean — does this feature require LLM/ML?",
+  "primary_personas": ["persona names from PRD"],
+  "dependencies": ["F-NNN references — NO circular dependencies"],
+  "data_prerequisites": ["Entity names from DATA-MODEL that must exist"]
+}
+```
+
+Also generate a META.json index:
+```json
+{
+  "project": "project-name",
+  "total_features": N,
+  "by_epic": { "E-001": N, "E-002": N },
+  "by_moscow": { "Must-Have": N, "Should-Have": N },
+  "by_type": { "user-facing": N, "system": N, "ai-agent": N },
+  "ai_features_count": N,
+  "total_story_points": N
+}
+```
+
 ### Quality Criteria
 - Every feature has at least one interface
 - Features exposed via MCP must also be exposed via REST (parity)

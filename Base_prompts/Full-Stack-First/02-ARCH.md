@@ -102,6 +102,32 @@ Dashboard ────┘ (consumes REST API)
 
 11. **What I'd Do Differently at 10x Scale**
 
+### Section: Agent Memory Architecture
+Define the memory tiers for all 48 agents:
+- **Short-term memory**: Conversation buffer within a single invocation (context window)
+- **Working memory**: Session context shared between agents during a pipeline run (PostgreSQL session_context table)
+- **Episodic memory**: Audit trail of past invocations, decisions, and outcomes (audit_events table)
+- **Semantic memory**: Domain knowledge accumulated across projects (exception_catalog, cost patterns)
+- **Procedural memory**: Learned optimization patterns (prompt effectiveness scores, model tier recommendations)
+
+Define: Storage tier per memory type | Retention policy | Isolation boundaries (per-agent, per-project, global) | Access patterns
+
+### Section: LLM Provider Routing Layer
+Define the model routing architecture (references sdk/llm/):
+- **Tier mapping**: fast → Haiku/GPT-4o-mini/Llama3.2, balanced → Sonnet/GPT-4o/Mistral, powerful → Opus/GPT-4.5/Llama3.1-405b
+- **Routing strategy**: Manifest-driven (each agent declares tier), environment-driven (LLM_PROVIDER env var), fallback chain
+- **Circuit breaker**: 5 consecutive failures → mark provider unhealthy → failover to next provider
+- **Cost-aware routing**: If budget < 20% remaining, downgrade tier (powerful→balanced, balanced→fast)
+- **Provider health check**: Periodic ping, latency tracking, error rate monitoring
+
+### Section: Knowledge Retrieval (RAG) Architecture
+If the platform uses retrieval-augmented generation:
+- **Vector store**: Per-project vector store for document embeddings
+- **Chunking strategy**: Document-level for specifications, semantic segments for code
+- **Retrieval pattern**: Query expansion → vector search → re-ranking → context injection
+- **Knowledge sources**: Generated-Docs, codebase, audit history, cost patterns
+- **Isolation**: Per-project knowledge boundary — agents cannot access other projects' data
+
 ### Quality Criteria
 - Shared service layer is clearly defined (MCP and REST never implement logic independently)
 - Interface parity matrix is complete

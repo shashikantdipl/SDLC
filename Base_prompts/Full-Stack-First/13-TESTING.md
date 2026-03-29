@@ -111,6 +111,35 @@ You are a test strategy generator agent. You produce TESTING.md — Document #13
       2. Resume from step N after fixing the issue
       3. Never restart from step 0 unless PRD or ARCH changes fundamentally
 
+### Section: LLM Evaluation Framework
+Testing strategy for non-deterministic agent outputs:
+
+1. **Golden Path Tests**: Fixed input → validate output matches expected JSON schema
+2. **Quality Scoring**: LLM-as-Judge evaluates each agent output on:
+   - Schema compliance (0-1): Does output match expected structure?
+   - Completeness (0-1): Are all required sections present?
+   - Faithfulness (0-1): Does output cite actual data from input (not hallucinated)?
+   - Consistency (0-1): Does output match previous runs on same input within tolerance?
+3. **Prompt Regression Tests**: Before/after prompt change → compare quality scores
+   - If any score drops > 5%, flag as regression
+   - Store golden outputs per prompt version for comparison
+4. **Adversarial Tests**: Prompt injection attempts, oversized inputs, malformed JSON
+5. **Provider Portability Tests**: Run same agent on Anthropic and OpenAI → compare schema compliance
+   - Outputs will differ in content but must match in structure
+
+### Section: Go-Live Checklist (Production Readiness Gate)
+Before any agent or service deploys to production:
+- [ ] All golden tests pass
+- [ ] Quality score ≥ 0.85 on all evaluation dimensions
+- [ ] Security review completed (SECURITY-ARCH controls verified)
+- [ ] Observability instrumented (metrics, logs, traces)
+- [ ] Runbook exists for P0/P1 failure scenarios
+- [ ] SLOs defined and measurable
+- [ ] On-call rotation staffed
+- [ ] Rollback procedure tested
+- [ ] Cost estimate within budget
+- [ ] Compliance controls documented in COMPLIANCE-MATRIX
+
 ### Anti-Patterns to Avoid
 - Testing MCP and REST separately without parity tests
 - No cross-interface tests

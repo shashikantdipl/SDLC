@@ -51,6 +51,28 @@ This is the flagship skill of Full-Stack-First. Running `/new-interaction <name>
 7. `tests/api/test_<name>.py` — REST route tests
 8. `tests/integration/test_<name>_fullstack.py` — Cross-interface integration test
 
+### Rule: Prompt Versioning (rules/10-prompt-versioning.md)
+- Every agent prompt (prompt.md) is versioned alongside its manifest
+- Version format: SemVer (MAJOR.MINOR.PATCH)
+  - MAJOR: Output schema changes, section additions/removals
+  - MINOR: Instruction refinements that may change output quality
+  - PATCH: Typo fixes, formatting, comments
+- Every prompt change requires:
+  1. Update version in manifest.yaml
+  2. Run golden tests against new prompt
+  3. Compare output quality score vs previous version
+  4. If quality drops > 5%, block merge and require review
+- Model pinning: Manifests specify tier, not exact model ID — but production deployments pin to specific model version via LLM_MODEL_OVERRIDE
+- No prompt changes in production without lifecycle review (G3 agent)
+
+### Rule: API Governance (rules/11-api-governance.md)
+- All REST endpoints follow the envelope format from API-CONTRACTS.md
+- All MCP tools follow the naming convention from MCP-TOOL-SPEC.md
+- Versioning: API version in URL path (/api/v1/) — increment on breaking change
+- Deprecation: Minimum 2 sprint warning before removing endpoint
+- New endpoints require: OpenAPI spec entry, integration test, MCP parity check
+- Rate limits defined per endpoint in API-CONTRACTS — enforced by middleware
+
 ### Quality Criteria
 - Shared services rule is the FIRST rule file
 - /new-interaction skill creates all layers in one command

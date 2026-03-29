@@ -1,5 +1,5 @@
 # G4-team-orchestrator — Pipeline execution coordinator
-# The BRAIN of the platform. Runs the 14-step document-stack pipeline,
+# The BRAIN of the platform. Runs the 24-step document-stack pipeline,
 # manages parallel groups, enforces cost ceilings, triggers approval gates.
 # Uses balanced tier (sonnet-class) because orchestration requires strong reasoning.
 
@@ -7,7 +7,7 @@ identity:
   id: G4-team-orchestrator
   name: Team Orchestrator
   version: "1.0.0"
-  description: "Coordinates multi-agent pipeline execution — manages step ordering, parallel groups, quality gates, cost ceilings, checkpoints, and approval gates for the 14-document Full-Stack-First pipeline"
+  description: "Coordinates multi-agent pipeline execution — manages step ordering, parallel groups, quality gates, cost ceilings, checkpoints, and approval gates for the 24-document Full-Stack-First pipeline"
   owner: platform-team
   phase: govern
   extends: orchestrator

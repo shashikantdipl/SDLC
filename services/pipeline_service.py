@@ -32,13 +32,29 @@ VALID_PIPELINES = {"document-stack", "feature-development", "bug-fix", "hotfix",
 DEFAULT_PIPELINE_CONFIG = PipelineConfig(
     pipeline_name="document-stack",
     steps=[
-        "D0-roadmap", "D1-prd", "D2-arch", "D3-claude", "D4-quality",
-        "D5-features", "D6-interaction", "D7-mcp", "D8-design",
-        "D9-data", "D10-api", "D11-backlog", "D12-enforce", "D13-testing",
+        # Pre-Phase + Phase A (Steps 0-3)
+        "D0-brd", "D1-roadmap", "D2-prd", "D3-arch",
+        # Phase B — Decomposition (Steps 4-6)
+        "D4-features", "D5-quality", "D6-security",
+        # Phase C — Interface Design (Steps 7-9)
+        "D7-interaction", "D8-mcp", "D9-design",
+        # Phase D — Data & Build-Facing (Steps 10-15)
+        "D10-data", "D11-api", "D12-user-stories", "D13-backlog", "D14-claude", "D15-enforce",
+        # Phase E — Operations, Safety & Compliance (Steps 16-21)
+        "D16-infra", "D17-migration", "D18-testing", "D19-fault-tolerance", "D20-guardrails", "D21-compliance",
     ],
-    cost_ceiling_usd=Decimal("25.00"),
-    parallel_groups=[["D0-roadmap", "D1-prd"], ["D3-claude", "D4-quality", "D5-features"], ["D7-mcp", "D8-design"], ["D11-backlog", "D12-enforce", "D13-testing"]],
-    gate_types={"D6-interaction": "quality_gate", "D7-mcp": "quality_gate", "D8-design": "quality_gate"},
+    cost_ceiling_usd=Decimal("45.00"),
+    parallel_groups=[
+        ["D1-roadmap", "D2-prd"],       # Phase A: ROADMAP ‖ PRD
+        ["D8-mcp", "D9-design"],         # Phase C: MCP-TOOL-SPEC ‖ DESIGN-SPEC
+        ["D17-migration", "D18-testing"],# Phase E: MIGRATION ‖ TESTING
+    ],
+    gate_types={
+        "D6-security": "quality_gate",   # After decomposition, before interface design
+        "D7-interaction": "quality_gate", # INTERACTION-MAP gates parallel MCP+DESIGN
+        "D11-api": "quality_gate",       # After data model, before build-facing docs
+        "D19-fault-tolerance": "quality_gate",  # After infra, before safety docs
+    },
 )
 
 

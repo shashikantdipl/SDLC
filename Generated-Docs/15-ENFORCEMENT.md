@@ -1,4 +1,4 @@
-# CLAUDE-ENFORCEMENT — Agentic SDLC Platform
+# ENFORCEMENT — Agentic SDLC Platform
 **Version:** v1.0 | Full-Stack-First | 2026-03-24
 **Document:** 15 of 24 | Status: Draft
 

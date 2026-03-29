@@ -1,4 +1,6 @@
 # ROADMAP.md — Agentic SDLC Platform
+**Version:** v1.0 | Full-Stack-First | 2026-03-24
+**Document:** 01 of 24 | Status: Draft
 
 > **v1.0 | Full-Stack-First | 2026-03-24**
 >

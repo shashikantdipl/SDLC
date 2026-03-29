@@ -1,0 +1,121 @@
+# D3-architecture-drafter — System Architecture Document
+# Step 3 in the 24-step pipeline. Reads PRD (Doc 02).
+# The MOST CONSUMED document — referenced by 20 downstream docs.
+# Defines HOW the system is built. Uses balanced tier (sonnet-class)
+# because architecture needs strong reasoning across many concerns.
+
+identity:
+  id: D3-architecture-drafter
+  name: Architecture Drafter
+  version: "1.0.0"
+  description: "Generates system architecture documents — C4 diagrams, tech stack decisions with alternatives, shared service layer, MCP server architecture, dashboard architecture, agent memory, LLM routing, RAG, cross-cutting concerns, data flow diagrams, interface parity matrix, and 10x scale considerations"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [architecture, c4, tech-stack, system-design, mcp, dashboard, services]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, capabilities]
+    properties:
+      project_name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+        description: "Capability clusters from PRD (C1-Cn)"
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            primary_interface:
+              type: string
+              enum: [mcp, dashboard, rest_api, cli]
+        description: "Personas with interface preferences from PRD"
+      constraints:
+        type: object
+        description: "Technology and infrastructure constraints from BRD"
+      integration_points:
+        type: array
+        items:
+          type: object
+        description: "External systems to integrate with"
+      data_entities:
+        type: array
+        items:
+          type: string
+        description: "Key data entities from BRD data inventory"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 11
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/deliverable-draft-v1.json
+  channels: [stdout]
+  writes_to: arch_doc
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.50
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 1.20
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc]
+    writes: [audit_trail, arch_doc]
+  regulations: []

@@ -1,0 +1,127 @@
+# D9-design-spec-writer — Dashboard Design Specification
+# Step 9 in 24-step pipeline. PARALLEL with D8-mcp-tool-spec (Group B).
+# Reads INTERACTION-MAP (07) + PRD (02) + QUALITY (05) + FEATURES (04).
+# Defines every dashboard screen for human operators.
+
+identity:
+  id: D9-design-spec-writer
+  name: Design Spec Writer
+  version: "1.0.0"
+  description: "Generates dashboard design specifications from INTERACTION-MAP — screen inventory, ASCII wireframes, data element mappings to shared data shapes, component library, responsive behavior, real-time update registry, and accessibility compliance"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [design, ui, ux, dashboard, screens, wireframes, accessibility]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, interactions, data_shapes, personas]
+    properties:
+      project_name:
+        type: string
+      interactions:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            dashboard_screen:
+              type: string
+            shared_service:
+              type: string
+        description: "Interactions from INTERACTION-MAP with dashboard screen names"
+      data_shapes:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            fields:
+              type: array
+              items:
+                type: string
+        description: "Data shapes from INTERACTION-MAP"
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            role:
+              type: string
+            primary_interface:
+              type: string
+        description: "Dashboard personas from PRD"
+      quality_nfrs:
+        type: array
+        items:
+          type: string
+        description: "Dashboard performance and accessibility NFRs"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/design-spec-v1.json
+  channels: [stdout]
+  writes_to: design_spec
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_high_screen_count
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [interaction_map, prd_doc, quality_doc, feature_catalog]
+    writes: [audit_trail, design_spec]
+  regulations: []

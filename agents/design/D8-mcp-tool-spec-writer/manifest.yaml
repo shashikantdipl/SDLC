@@ -1,0 +1,129 @@
+# D8-mcp-tool-spec-writer — MCP Tool Specification
+# Step 8 in 24-step pipeline. PARALLEL with D9-design-spec (Group B).
+# Reads INTERACTION-MAP (07) + ARCH (03) + FEATURES (04) + QUALITY (05).
+# Defines every MCP tool, resource, and prompt template for AI clients.
+
+identity:
+  id: D8-mcp-tool-spec-writer
+  name: MCP Tool Spec Writer
+  version: "1.0.0"
+  description: "Generates MCP tool specifications from INTERACTION-MAP — server inventory, tool definitions with JSON Schema inputs, resources with URI patterns, prompt templates, error codes, rate limits, and REST API derivation table"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [mcp, tools, specification, api, resources, prompts]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, interactions, data_shapes]
+    properties:
+      project_name:
+        type: string
+      interactions:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            mcp_tool:
+              type: string
+            shared_service:
+              type: string
+            data_required:
+              type: string
+        description: "Interactions from INTERACTION-MAP with MCP tool names"
+      data_shapes:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            fields:
+              type: array
+              items:
+                type: string
+        description: "Data shapes from INTERACTION-MAP"
+      mcp_servers:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            domain:
+              type: string
+            port:
+              type: integer
+        description: "MCP server definitions from ARCH"
+      quality_nfrs:
+        type: array
+        items:
+          type: string
+        description: "Performance NFRs for MCP tools (Q-NNN)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 9
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/mcp-tool-spec-v1.json
+  channels: [stdout]
+  writes_to: mcp_tool_spec
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_high_tool_count
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [interaction_map, arch_doc, feature_catalog, quality_doc]
+    writes: [audit_trail, mcp_tool_spec]
+  regulations: []

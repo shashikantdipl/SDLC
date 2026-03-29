@@ -1,0 +1,125 @@
+# D14-claude-md-generator — CLAUDE.md Project Configuration
+# Step 14 in 24-step pipeline. Phase D (Data & Build-Facing).
+# Reads ROADMAP (01) + ARCH (03) + DATA-MODEL (10) + API-CONTRACTS (11).
+# DELAYED from Phase A — now written AFTER system design is complete.
+# This means CLAUDE.md can reference actual table names, API patterns,
+# entity conventions, and agent architecture instead of guessing.
+# Uses sonnet (balanced) — needs to be comprehensive but under 500 lines.
+
+identity:
+  id: D14-claude-md-generator
+  name: CLAUDE.md Generator
+  version: "1.0.0"
+  description: "Generates CLAUDE.md — the single source of truth for coding in this repo. Includes project metadata, architecture summary, repo structure, language rules, implementation patterns (shared service, MCP tool, API route, dashboard view, agent, migration), key commands, forbidden patterns, and cost/budget"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [claude-md, configuration, rules, patterns, conventions, developer-guide]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, architecture_summary, repo_structure]
+    properties:
+      project_name:
+        type: string
+      project_purpose:
+        type: string
+      architecture_summary:
+        type: object
+        description: "Tech stack, components, services from ARCH"
+        properties:
+          languages:
+            type: array
+            items:
+              type: string
+          frameworks:
+            type: array
+            items:
+              type: string
+          databases:
+            type: array
+            items:
+              type: string
+          services:
+            type: array
+            items:
+              type: string
+          interfaces:
+            type: array
+            items:
+              type: string
+      repo_structure:
+        type: object
+        description: "Directory tree with descriptions"
+      entity_conventions:
+        type: object
+        description: "Naming conventions from DATA-MODEL (table names, column patterns)"
+      api_patterns:
+        type: object
+        description: "Endpoint patterns from API-CONTRACTS (URL structure, envelope)"
+      roadmap_context:
+        type: object
+        description: "Timeline and milestone context from ROADMAP"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/claude-md-v1.json
+  channels: [stdout]
+  writes_to: claude_doc
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.80
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_rule_conflict
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.60
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [roadmap_doc, arch_doc, data_model, api_contracts]
+    writes: [audit_trail, claude_doc]
+  regulations: []

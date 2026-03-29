@@ -1,0 +1,122 @@
+# D4-feature-extractor — Feature Catalog (18-field structured JSON)
+# Step 4 in the 24-step pipeline. First doc in Phase B (Decomposition).
+# Reads PRD (Doc 02) + ARCH (Doc 03). Outputs JSON, not markdown.
+# MUST come before QUALITY (Doc 05) — enables per-module coverage thresholds.
+# Upgraded in v2: 18-field JSON schema with ai_required, friction, incentive_type.
+
+identity:
+  id: D4-feature-extractor
+  name: Feature Extractor
+  version: "2.0.0"
+  description: "Extracts structured 18-field JSON features from PRD capabilities and ARCH components — F-NNN IDs, MoSCoW priority, story points, epic grouping, ai_required flag, friction analysis, interface mapping, and dependency graph with zero circular references"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [features, catalog, json, extraction, decomposition, moscow, epics]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, capabilities, components]
+    properties:
+      project_name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+        description: "Capability clusters from PRD (C1-Cn)"
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+            responsibility:
+              type: string
+        description: "System components from ARCH"
+      personas:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            primary_interface:
+              type: string
+        description: "Personas from PRD with interface preferences"
+      constraints:
+        type: object
+        description: "Project constraints (budget, timeline)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/feature-catalog-v1.json
+  channels: [stdout]
+  writes_to: feature_catalog
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_high_feature_count
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd_doc, arch_doc]
+    writes: [audit_trail, feature_catalog]
+  regulations: []

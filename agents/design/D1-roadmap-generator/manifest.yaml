@@ -1,0 +1,122 @@
+# D1-roadmap-generator — Delivery roadmap and project plan
+# Step 1 in the 24-step pipeline (parallel with D2-prd in Group A).
+# Reads BRD (Doc 00). Produces project context consumed by Doc 14 (CLAUDE.md).
+# Human-facing — for stakeholder alignment, not code generation.
+
+identity:
+  id: D1-roadmap-generator
+  name: Roadmap Generator
+  version: "1.0.0"
+  description: "Generates delivery roadmaps from BRD and raw spec — phases with entry/exit criteria, milestones, risk register, open decisions, timeline visualization, and document versioning policy"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [roadmap, planning, delivery, timeline, milestones, risk]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.2
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, project_purpose]
+    properties:
+      project_name:
+        type: string
+        description: "Project name"
+      project_purpose:
+        type: string
+        description: "One paragraph project description"
+      brd_summary:
+        type: object
+        description: "Key outputs from BRD (Doc 00) — requirements count, stakeholder list, constraints, success criteria"
+        properties:
+          requirements_count:
+            type: integer
+          must_have_count:
+            type: integer
+          stakeholders:
+            type: array
+            items:
+              type: object
+          constraints:
+            type: object
+          success_criteria:
+            type: array
+            items:
+              type: string
+          open_questions:
+            type: array
+            items:
+              type: string
+      team_size:
+        type: integer
+        default: 3
+        description: "Number of developers"
+      sprint_length_weeks:
+        type: integer
+        default: 2
+      known_risks:
+        type: array
+        items:
+          type: string
+        description: "Known project risks"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 7
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/roadmap-v1.json
+  channels: [stdout]
+  writes_to: roadmap_doc
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [brd_doc, raw_spec]
+    writes: [audit_trail, roadmap_doc]
+  regulations: []

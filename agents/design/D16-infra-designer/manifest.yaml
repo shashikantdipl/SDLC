@@ -1,0 +1,123 @@
+# D16-infra-designer — Infrastructure Design
+# Step 16 in 24-step pipeline. First doc in Phase E (Operations).
+# Reads ARCH (03) + SECURITY-ARCH (06) + QUALITY (05) + FEATURES (04).
+# Covers: environments, networking, compute sizing, CI/CD pipeline,
+# database deployment, IaC, cost estimates (including LLM costs),
+# observability (AI-specific telemetry), disaster recovery,
+# capacity planning, and rollback procedures.
+# New in v2 — includes observability, DR, capacity all in ONE doc.
+
+identity:
+  id: D16-infra-designer
+  name: Infrastructure Designer
+  version: "1.0.0"
+  description: "Generates infrastructure design — environment strategy, network architecture, compute sizing (module-aware for AI vs CRUD), CI/CD pipeline with numbered stages, database deployment, IaC structure, cost estimates including LLM API costs, observability with AI telemetry, disaster recovery with RPO/RTO, capacity planning with LLM token forecasting, and rollback procedures"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [infrastructure, environments, cicd, observability, disaster-recovery, capacity, cost]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, components, quality_nfrs]
+    properties:
+      project_name:
+        type: string
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+            port:
+              type: integer
+        description: "System components from ARCH"
+      quality_nfrs:
+        type: array
+        items:
+          type: string
+        description: "Performance and reliability NFRs from QUALITY"
+      security_requirements:
+        type: array
+        items:
+          type: string
+        description: "Infrastructure security requirements from SECURITY-ARCH"
+      feature_summary:
+        type: object
+        description: "Feature count and AI feature count from FEATURE-CATALOG"
+        properties:
+          total_features:
+            type: integer
+          ai_features_count:
+            type: integer
+          total_story_points:
+            type: integer
+      constraints:
+        type: object
+        description: "Budget and timeline constraints"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 11
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/infra-design-v1.json
+  channels: [stdout]
+  writes_to: infra_design
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_cost_threshold
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [arch_doc, security_arch, quality_doc, feature_catalog]
+    writes: [audit_trail, infra_design]
+  regulations: []

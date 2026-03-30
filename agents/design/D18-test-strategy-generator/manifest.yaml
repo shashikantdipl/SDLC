@@ -1,0 +1,136 @@
+# D18-test-strategy-generator — Test Strategy (upgraded v2)
+# Step 18 in 24-step pipeline. Phase E. PARALLEL with D17 (MIGRATION).
+# Reads ARCH (03) + QUALITY (05) + DATA-MODEL (10) + CLAUDE (14) +
+#   MCP-TOOL-SPEC (08) + DESIGN-SPEC (09) + INTERACTION-MAP (07) + SECURITY-ARCH (06).
+# v2 upgrade: +LLM evaluation framework, +prompt regression tests, +go-live checklist.
+
+identity:
+  id: D18-test-strategy-generator
+  name: Test Strategy Generator
+  version: "2.0.0"
+  description: "Generates test strategy — Full-Stack-First test pyramid, per-layer frameworks, testcontainers DB strategy, MCP protocol tests, REST API tests, dashboard tests, cross-interface parity tests, LLM evaluation framework (golden path + quality scoring + prompt regression + adversarial), agent tests, performance benchmarks, CI pipeline stages, and production readiness go-live checklist"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [testing, test-strategy, pytest, testcontainers, llm-eval, parity, cicd, go-live]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, components, quality_thresholds]
+    properties:
+      project_name:
+        type: string
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+        description: "System components from ARCH"
+      quality_thresholds:
+        type: object
+        description: "Coverage thresholds from QUALITY — per-module"
+        properties:
+          ai_safety:
+            type: integer
+          core_business:
+            type: integer
+          shared_services:
+            type: integer
+          mcp_handlers:
+            type: integer
+          rest_handlers:
+            type: integer
+          dashboard:
+            type: integer
+      mcp_tools:
+        type: array
+        items:
+          type: string
+        description: "MCP tool names from MCP-TOOL-SPEC"
+      dashboard_screens:
+        type: array
+        items:
+          type: string
+        description: "Dashboard screens from DESIGN-SPEC"
+      interaction_ids:
+        type: array
+        items:
+          type: string
+        description: "I-NNN interaction IDs for parity tests"
+      data_tables:
+        type: array
+        items:
+          type: string
+        description: "Database tables from DATA-MODEL"
+      security_test_requirements:
+        type: array
+        items:
+          type: string
+        description: "Security testing requirements from SECURITY-ARCH"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 15
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/test-strategy-v1.json
+  channels: [stdout]
+  writes_to: test_strategy
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_coverage_change
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [arch_doc, quality_doc, data_model, claude_doc, mcp_tool_spec, design_spec, interaction_map, security_arch]
+    writes: [audit_trail, test_strategy]
+  regulations: []

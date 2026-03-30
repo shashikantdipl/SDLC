@@ -1,0 +1,134 @@
+# D20-guardrails-spec-writer — AI Safety Guardrails Specification
+# Step 20 in 24-step pipeline. Phase E (Operations, Safety & Compliance).
+# Reads ARCH (03) + SECURITY-ARCH (06) + ENFORCEMENT (15) + QUALITY (05) + AGENT-HANDOFF (22).
+# THIS DOC DOES NOT EXIST IN TRADITIONAL SDLC — unique to AI-native platforms.
+# 4-layer defense-in-depth against AI-specific risks.
+
+identity:
+  id: D20-guardrails-spec-writer
+  name: Guardrails Spec Writer
+  version: "1.0.0"
+  description: "Generates AI safety guardrails specification — 4-layer defense-in-depth (Input, Processing, Output, Governance) protecting against prompt injection, hallucination, data leakage, toxicity, budget overrun, and unauthorized agent actions"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [guardrails, ai-safety, prompt-injection, hallucination, pii, kill-switch, defense-in-depth]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, agent_count, data_classification]
+    properties:
+      project_name:
+        type: string
+      agent_count:
+        type: integer
+        description: "Total number of AI agents in the platform"
+      agent_phases:
+        type: array
+        items:
+          type: string
+        description: "Agent phases (GOVERN, DESIGN, BUILD, etc.)"
+      autonomy_tiers:
+        type: array
+        items:
+          type: object
+          properties:
+            tier:
+              type: string
+            description:
+              type: string
+            hitl_required:
+              type: boolean
+        description: "Autonomy tiers T0-T3 from ARCH"
+      data_classification:
+        type: array
+        items:
+          type: object
+          properties:
+            level:
+              type: string
+            examples:
+              type: array
+              items:
+                type: string
+            llm_policy:
+              type: string
+        description: "Data classification from SECURITY-ARCH"
+      enforcement_rules:
+        type: array
+        items:
+          type: string
+        description: "Active rule files from ENFORCEMENT"
+      quality_gates:
+        type: array
+        items:
+          type: string
+        description: "Quality gate thresholds from QUALITY"
+      llm_providers:
+        type: array
+        items:
+          type: string
+        description: "Available LLM providers"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/guardrails-spec-v1.json
+  channels: [stdout]
+  writes_to: guardrails_spec
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.95
+
+compliance:
+  data_inventory:
+    reads: [arch_doc, security_arch, enforcement_rules, quality_doc, agent_handoff]
+    writes: [audit_trail, guardrails_spec]
+  regulations: [EU_AI_ACT, NIST_AI_RMF]

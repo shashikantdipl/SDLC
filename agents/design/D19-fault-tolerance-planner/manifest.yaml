@@ -1,0 +1,126 @@
+# D19-fault-tolerance-planner — Fault Tolerance Plan
+# Step 19 in 24-step pipeline. Phase E (Operations).
+# Reads ARCH (03) + DATA-MODEL (10) + API-CONTRACTS (11) +
+#   SECURITY-ARCH (06) + INFRA-DESIGN (16) + QUALITY (05).
+# 5-layer failure scenario organization with P0-P3 priorities.
+# New in v2 — added by senior architects. Most detailed operational doc.
+
+identity:
+  id: D19-fault-tolerance-planner
+  name: Fault Tolerance Planner
+  version: "1.0.0"
+  description: "Generates fault tolerance plans — 5-layer failure scenarios (Application, Functional, Database, Session, Cross-Cutting) with P0-P3 priorities, specific detection metrics and thresholds, handling with exact retry counts and backoff times, recovery procedures with RTO, LLM provider failover, on-call procedures for P0/P1, and nightly reconciliation"
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [fault-tolerance, resilience, failure, recovery, circuit-breaker, failover, on-call]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, components, quality_nfrs]
+    properties:
+      project_name:
+        type: string
+      components:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            technology:
+              type: string
+            port:
+              type: integer
+        description: "System components from ARCH — every one needs failure scenarios"
+      data_tables:
+        type: array
+        items:
+          type: string
+        description: "Database tables from DATA-MODEL — for DB layer failures"
+      api_endpoints:
+        type: array
+        items:
+          type: string
+        description: "REST endpoints from API-CONTRACTS — for functional layer failures"
+      quality_nfrs:
+        type: array
+        items:
+          type: string
+        description: "Reliability/availability NFRs from QUALITY — for RTO targets"
+      security_concerns:
+        type: array
+        items:
+          type: string
+        description: "Auth flows from SECURITY-ARCH — for session layer failures"
+      infra_details:
+        type: object
+        description: "Infrastructure from INFRA-DESIGN — for infrastructure layer failures"
+      llm_providers:
+        type: array
+        items:
+          type: string
+        description: "LLM providers (anthropic, openai, ollama) — for provider failover"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/fault-tolerance-v1.json
+  channels: [stdout]
+  writes_to: fault_tolerance
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_p0_scenario
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [arch_doc, data_model, api_contracts, security_arch, infra_design, quality_doc]
+    writes: [audit_trail, fault_tolerance]
+  regulations: []

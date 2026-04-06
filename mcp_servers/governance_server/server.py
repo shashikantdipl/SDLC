@@ -376,30 +376,69 @@ async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> list[
 
 async def _dispatch(name: str, arguments: dict[str, Any]) -> Any:
     # --- CostService ---
+    # Explicit parameter mapping: tool schema names → service parameter names
     if name == "get_cost_report":
-        return await _cost_service.get_report(**arguments)
+        return await _cost_service.get_report(
+            scope=arguments.get("scope", "project"),
+            scope_id=arguments.get("scope_id", ""),
+            period_days=int(arguments.get("period_days", arguments.get("days", 7))),
+        )
     if name == "check_budget":
-        return await _cost_service.check_budget(**arguments)
+        return await _cost_service.check_budget(
+            scope=arguments.get("scope", "project"),
+            scope_id=arguments.get("scope_id", arguments.get("project_id", "")),
+        )
     if name == "get_cost_anomalies":
-        return await _cost_service.get_anomalies(**arguments)
+        return await _cost_service.get_anomalies(
+            project_id=arguments.get("project_id", ""),
+        )
     if name == "update_budget_threshold":
-        return await _cost_service.update_budget_threshold(**arguments)
+        from decimal import Decimal
+        return await _cost_service.update_budget_threshold(
+            scope=arguments.get("scope", "project"),
+            scope_id=arguments.get("scope_id", ""),
+            new_budget=Decimal(str(arguments.get("budget_usd", arguments.get("new_budget", 0)))),
+        )
 
     # --- AuditService ---
     if name == "query_audit_events":
-        return await _audit_service.query_events(**arguments)
+        return await _audit_service.query_events(
+            project_id=arguments.get("project_id", ""),
+            severity=arguments.get("severity"),
+            agent_id=arguments.get("agent_id", arguments.get("actor")),
+            limit=int(arguments.get("limit", 100)),
+            offset=int(arguments.get("offset", 0)),
+        )
     if name == "get_audit_summary":
-        return await _audit_service.get_summary(**arguments)
+        return await _audit_service.get_summary(
+            project_id=arguments.get("project_id", ""),
+            period_days=int(arguments.get("period_days", arguments.get("days", 7))),
+        )
     if name == "export_audit_report":
-        return await _audit_service.export_report(**arguments)
+        return await _audit_service.export_report(
+            project_id=arguments.get("project_id", ""),
+            period_days=int(arguments.get("period_days", 30)),
+        )
 
     # --- ApprovalService ---
     if name == "list_pending_approvals":
-        return await _approval_service.list_pending(**arguments)
+        return await _approval_service.list_pending(
+            project_id=arguments.get("project_id"),
+        )
     if name == "approve_gate":
-        return await _approval_service.approve(**arguments)
+        from uuid import UUID
+        return await _approval_service.approve(
+            approval_id=UUID(arguments["approval_id"]),
+            decision_by=arguments.get("decision_by", "mcp_user"),
+            comment=arguments.get("comment"),
+        )
     if name == "reject_gate":
-        return await _approval_service.reject(**arguments)
+        from uuid import UUID
+        return await _approval_service.reject(
+            approval_id=UUID(arguments["approval_id"]),
+            decision_by=arguments.get("decision_by", "mcp_user"),
+            reason=arguments.get("reason", "Rejected via MCP"),
+        )
 
     raise ValueError(f"Unknown tool: {name}")
 

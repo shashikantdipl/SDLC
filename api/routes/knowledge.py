@@ -12,7 +12,7 @@ async def search_exceptions(request: web.Request) -> web.Response:
     query = request.query.get("query", "")
     tier = request.query.get("tier")
     limit = int(request.query.get("limit", 20))
-    results = await svc.search_exceptions(
+    results = await svc.search(
         query=query,
         tier=tier,
         limit=limit,
@@ -47,7 +47,7 @@ async def promote_exception(request: web.Request) -> web.Response:
     svc = request.app["knowledge_service"]
     exception_id = request.match_info["exception_id"]
     body = await request.json()
-    result = await svc.promote_exception(
+    result = await svc.promote(
         exception_id=exception_id,
         target_tier=body["target_tier"],
         promoted_by=body["promoted_by"],

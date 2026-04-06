@@ -8,12 +8,13 @@ CREATE TABLE pipeline_runs (
     status          VARCHAR(16) NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending', 'running', 'paused', 'completed', 'failed', 'cancelled')),
     current_step    INTEGER NOT NULL DEFAULT 0 CHECK (current_step >= 0),
-    total_steps     INTEGER NOT NULL DEFAULT 14 CHECK (total_steps > 0),
+    total_steps     INTEGER NOT NULL DEFAULT 22 CHECK (total_steps > 0),
     triggered_by    VARCHAR(128) NOT NULL DEFAULT 'system',
     error_message   TEXT,
     started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at    TIMESTAMPTZ,
-    cost_usd        NUMERIC(10, 6) NOT NULL DEFAULT 0 CHECK (cost_usd >= 0)
+    cost_usd        NUMERIC(10, 6) NOT NULL DEFAULT 0 CHECK (cost_usd >= 0),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE pipeline_steps (

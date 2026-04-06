@@ -1,4 +1,7 @@
-"""Pipeline route handlers (I-001 through I-009)."""
+"""Pipeline route handlers (I-001 through I-009).
+
+Thin wrappers around PipelineService. No business logic here.
+"""
 from uuid import UUID
 
 from aiohttp import web
@@ -12,10 +15,11 @@ from . import success_response
 async def trigger_pipeline(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     body = await request.json()
-    result = await svc.trigger_pipeline(
-        pipeline_name=body["pipeline_name"],
+    result = await svc.trigger(
         project_id=body["project_id"],
-        params=body.get("params", {}),
+        pipeline_name=body["pipeline_name"],
+        brief=body["brief"],
+        triggered_by=body.get("triggered_by", "system"),
     )
     return success_response(result.model_dump(mode="json"), status=201)
 
@@ -29,7 +33,7 @@ async def list_pipelines(request: web.Request) -> web.Response:
     status_filter = request.query.get("status")
     limit = int(request.query.get("limit", 20))
     offset = int(request.query.get("offset", 0))
-    results = await svc.list_pipelines(
+    results = await svc.list_runs(
         project_id=project_id,
         status=status_filter,
         limit=limit,
@@ -47,7 +51,7 @@ async def list_pipelines(request: web.Request) -> web.Response:
 async def get_pipeline_status(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     run_id = UUID(request.match_info["run_id"])
-    result = await svc.get_pipeline_status(run_id=run_id)
+    result = await svc.get_status(run_id=run_id)
     return success_response(result.model_dump(mode="json"))
 
 
@@ -57,7 +61,7 @@ async def get_pipeline_status(request: web.Request) -> web.Response:
 async def resume_pipeline(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     run_id = UUID(request.match_info["run_id"])
-    result = await svc.resume_pipeline(run_id=run_id)
+    result = await svc.resume(run_id=run_id)
     return success_response(result.model_dump(mode="json"))
 
 
@@ -67,7 +71,7 @@ async def resume_pipeline(request: web.Request) -> web.Response:
 async def cancel_pipeline(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     run_id = UUID(request.match_info["run_id"])
-    result = await svc.cancel_pipeline(run_id=run_id)
+    result = await svc.cancel(run_id=run_id)
     return success_response(result.model_dump(mode="json"))
 
 
@@ -77,7 +81,7 @@ async def cancel_pipeline(request: web.Request) -> web.Response:
 async def get_pipeline_documents(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     run_id = UUID(request.match_info["run_id"])
-    results = await svc.get_pipeline_documents(run_id=run_id)
+    results = await svc.get_documents(run_id=run_id)
     return success_response([r.model_dump(mode="json") for r in results])
 
 
@@ -88,7 +92,9 @@ async def retry_step(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     run_id = UUID(request.match_info["run_id"])
     step = request.match_info["step"]
-    result = await svc.retry_step(run_id=run_id, step=step)
+    # retry_step not a separate method — update step status to pending then return run
+    await svc.update_step_status(run_id=run_id, step=step, status="pending")
+    result = await svc.get_status(run_id=run_id)
     return success_response(result.model_dump(mode="json"))
 
 
@@ -98,7 +104,7 @@ async def retry_step(request: web.Request) -> web.Response:
 async def get_pipeline_config(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     pipeline_name = request.match_info["pipeline_name"]
-    result = await svc.get_pipeline_config(pipeline_name=pipeline_name)
+    result = await svc.get_config(pipeline_name=pipeline_name)
     return success_response(result.model_dump(mode="json"))
 
 
@@ -108,9 +114,10 @@ async def get_pipeline_config(request: web.Request) -> web.Response:
 async def validate_pipeline_input(request: web.Request) -> web.Response:
     svc = request.app["pipeline_service"]
     body = await request.json()
-    result = await svc.validate_pipeline_input(
+    result = await svc.validate_input(
+        project_id=body["project_id"],
         pipeline_name=body["pipeline_name"],
-        params=body.get("params", {}),
+        brief=body["brief"],
     )
     return success_response(result.model_dump(mode="json"))
 

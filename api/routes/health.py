@@ -18,8 +18,8 @@ async def get_fleet_health(request: web.Request) -> web.Response:
 # ---------------------------------------------------------------------------
 async def get_mcp_status(request: web.Request) -> web.Response:
     svc = request.app["health_service"]
-    result = await svc.get_mcp_status()
-    return success_response(result.model_dump(mode="json"))
+    results = await svc.get_mcp_status()  # Returns list[McpServerStatus]
+    return success_response([r.model_dump(mode="json") for r in results])
 
 
 # ---------------------------------------------------------------------------

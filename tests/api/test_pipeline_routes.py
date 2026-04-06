@@ -69,12 +69,12 @@ class TestTriggerPipeline:
     @pytest.mark.asyncio
     async def test_trigger_returns_201_with_pipeline_run(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.trigger_pipeline.return_value = _make_run()
+        mock_svc.trigger.return_value = _make_run()
         app["pipeline_service"] = mock_svc
 
         resp = await client.post(
             "/api/v1/pipelines",
-            json={"pipeline_name": "document-stack", "project_id": "proj-1"},
+            json={"pipeline_name": "document-stack", "project_id": "proj-1", "brief": "", "triggered_by": "tester"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 201
@@ -82,16 +82,17 @@ class TestTriggerPipeline:
         assert "data" in body
         assert body["data"]["run_id"] == str(RUN_ID)
         assert body["data"]["status"] == "pending"
-        mock_svc.trigger_pipeline.assert_called_once_with(
+        mock_svc.trigger.assert_called_once_with(
             pipeline_name="document-stack",
             project_id="proj-1",
-            params={},
+            brief="",
+            triggered_by="tester",
         )
 
     @pytest.mark.asyncio
     async def test_trigger_passes_params(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.trigger_pipeline.return_value = _make_run()
+        mock_svc.trigger.return_value = _make_run()
         app["pipeline_service"] = mock_svc
 
         resp = await client.post(
@@ -99,15 +100,17 @@ class TestTriggerPipeline:
             json={
                 "pipeline_name": "document-stack",
                 "project_id": "proj-1",
-                "params": {"brief": "Build a todo app"},
+                "brief": "Build a todo app",
+                "triggered_by": "tester",
             },
             headers=AUTH_HEADERS,
         )
         assert resp.status == 201
-        mock_svc.trigger_pipeline.assert_called_once_with(
+        mock_svc.trigger.assert_called_once_with(
             pipeline_name="document-stack",
             project_id="proj-1",
-            params={"brief": "Build a todo app"},
+            brief="Build a todo app",
+            triggered_by="tester",
         )
 
 
@@ -119,7 +122,7 @@ class TestListPipelines:
     @pytest.mark.asyncio
     async def test_list_returns_200_with_runs(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.list_pipelines.return_value = [
+        mock_svc.list_runs.return_value = [
             _make_run(run_id=uuid4()),
             _make_run(run_id=uuid4()),
         ]
@@ -134,12 +137,12 @@ class TestListPipelines:
         assert "data" in body
         assert len(body["data"]) == 2
         assert "meta" in body
-        mock_svc.list_pipelines.assert_called_once()
+        mock_svc.list_runs.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_list_passes_query_params(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.list_pipelines.return_value = []
+        mock_svc.list_runs.return_value = []
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(
@@ -147,7 +150,7 @@ class TestListPipelines:
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
-        mock_svc.list_pipelines.assert_called_once_with(
+        mock_svc.list_runs.assert_called_once_with(
             project_id="proj-1",
             status="running",
             limit=5,
@@ -157,7 +160,7 @@ class TestListPipelines:
     @pytest.mark.asyncio
     async def test_list_defaults_limit_offset(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.list_pipelines.return_value = []
+        mock_svc.list_runs.return_value = []
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(
@@ -165,7 +168,7 @@ class TestListPipelines:
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
-        mock_svc.list_pipelines.assert_called_once_with(
+        mock_svc.list_runs.assert_called_once_with(
             project_id=None,
             status=None,
             limit=20,
@@ -175,7 +178,7 @@ class TestListPipelines:
     @pytest.mark.asyncio
     async def test_list_meta_contains_limit_offset(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.list_pipelines.return_value = []
+        mock_svc.list_runs.return_value = []
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(
@@ -195,7 +198,7 @@ class TestGetPipelineStatus:
     @pytest.mark.asyncio
     async def test_get_status_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.get_pipeline_status.return_value = _make_run()
+        mock_svc.get_status.return_value = _make_run()
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(
@@ -205,7 +208,7 @@ class TestGetPipelineStatus:
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["run_id"] == str(RUN_ID)
-        mock_svc.get_pipeline_status.assert_called_once_with(run_id=RUN_ID)
+        mock_svc.get_status.assert_called_once_with(run_id=RUN_ID)
 
     @pytest.mark.asyncio
     async def test_get_status_not_found_returns_404(self, client, app):
@@ -213,7 +216,7 @@ class TestGetPipelineStatus:
 
         mock_svc = AsyncMock()
         missing_id = uuid4()
-        mock_svc.get_pipeline_status.side_effect = PipelineNotFoundError(
+        mock_svc.get_status.side_effect = PipelineNotFoundError(
             f"Pipeline run {missing_id} not found"
         )
         app["pipeline_service"] = mock_svc
@@ -235,7 +238,7 @@ class TestResumePipeline:
     @pytest.mark.asyncio
     async def test_resume_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.resume_pipeline.return_value = _make_run(status=PipelineStatus.RUNNING)
+        mock_svc.resume.return_value = _make_run(status=PipelineStatus.RUNNING)
         app["pipeline_service"] = mock_svc
 
         resp = await client.post(
@@ -245,14 +248,14 @@ class TestResumePipeline:
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["status"] == "running"
-        mock_svc.resume_pipeline.assert_called_once_with(run_id=RUN_ID)
+        mock_svc.resume.assert_called_once_with(run_id=RUN_ID)
 
     @pytest.mark.asyncio
     async def test_resume_invalid_state_returns_409(self, client, app):
         from services.pipeline_service import PipelineStateError
 
         mock_svc = AsyncMock()
-        mock_svc.resume_pipeline.side_effect = PipelineStateError(
+        mock_svc.resume.side_effect = PipelineStateError(
             run_id=RUN_ID,
             current_status="pending",
             attempted_action="resume",
@@ -276,7 +279,7 @@ class TestCancelPipeline:
     @pytest.mark.asyncio
     async def test_cancel_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.cancel_pipeline.return_value = _make_run(
+        mock_svc.cancel.return_value = _make_run(
             status=PipelineStatus.FAILED, completed_at=NOW,
         )
         app["pipeline_service"] = mock_svc
@@ -288,14 +291,14 @@ class TestCancelPipeline:
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["completed_at"] is not None
-        mock_svc.cancel_pipeline.assert_called_once_with(run_id=RUN_ID)
+        mock_svc.cancel.assert_called_once_with(run_id=RUN_ID)
 
     @pytest.mark.asyncio
     async def test_cancel_completed_returns_409(self, client, app):
         from services.pipeline_service import PipelineStateError
 
         mock_svc = AsyncMock()
-        mock_svc.cancel_pipeline.side_effect = PipelineStateError(
+        mock_svc.cancel.side_effect = PipelineStateError(
             run_id=RUN_ID,
             current_status="completed",
             attempted_action="cancel",
@@ -319,28 +322,29 @@ class TestValidatePipelineInput:
     @pytest.mark.asyncio
     async def test_validate_valid_input(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.validate_pipeline_input.return_value = ValidationResult(
+        mock_svc.validate_input.return_value = ValidationResult(
             valid=True, errors=[], warnings=[],
         )
         app["pipeline_service"] = mock_svc
 
         resp = await client.post(
             "/api/v1/pipelines/validate",
-            json={"pipeline_name": "document-stack", "params": {"brief": "Build an app"}},
+            json={"pipeline_name": "document-stack", "project_id": "proj-1", "brief": "Build an app"},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["valid"] is True
-        mock_svc.validate_pipeline_input.assert_called_once_with(
+        mock_svc.validate_input.assert_called_once_with(
+            project_id="proj-1",
             pipeline_name="document-stack",
-            params={"brief": "Build an app"},
+            brief="Build an app",
         )
 
     @pytest.mark.asyncio
     async def test_validate_invalid_input(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.validate_pipeline_input.return_value = ValidationResult(
+        mock_svc.validate_input.return_value = ValidationResult(
             valid=False,
             errors=["pipeline_name 'bad' is not valid"],
             warnings=[],
@@ -349,7 +353,7 @@ class TestValidatePipelineInput:
 
         resp = await client.post(
             "/api/v1/pipelines/validate",
-            json={"pipeline_name": "bad"},
+            json={"pipeline_name": "bad", "project_id": "proj-1", "brief": ""},
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
@@ -366,7 +370,7 @@ class TestGetPipelineConfig:
     @pytest.mark.asyncio
     async def test_get_config_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.get_pipeline_config.return_value = PipelineConfig(
+        mock_svc.get_config.return_value = PipelineConfig(
             pipeline_name="document-stack",
             steps=["00-ROADMAP", "01-PRD"],
             cost_ceiling_usd=Decimal("25.00"),
@@ -382,7 +386,7 @@ class TestGetPipelineConfig:
         assert resp.status == 200
         body = await resp.json()
         assert body["data"]["pipeline_name"] == "document-stack"
-        mock_svc.get_pipeline_config.assert_called_once_with(
+        mock_svc.get_config.assert_called_once_with(
             pipeline_name="document-stack",
         )
 
@@ -395,7 +399,7 @@ class TestGetPipelineDocuments:
     @pytest.mark.asyncio
     async def test_get_documents_returns_list(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.get_pipeline_documents.return_value = [
+        mock_svc.get_documents.return_value = [
             PipelineDocument(
                 document_name="00-ROADMAP",
                 document_number=0,
@@ -415,7 +419,7 @@ class TestGetPipelineDocuments:
         body = await resp.json()
         assert len(body["data"]) == 1
         assert body["data"][0]["document_name"] == "00-ROADMAP"
-        mock_svc.get_pipeline_documents.assert_called_once_with(run_id=RUN_ID)
+        mock_svc.get_documents.assert_called_once_with(run_id=RUN_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +430,8 @@ class TestRetryStep:
     @pytest.mark.asyncio
     async def test_retry_step_returns_200(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.retry_step.return_value = _make_run(status=PipelineStatus.RUNNING)
+        mock_svc.update_step_status.return_value = None
+        mock_svc.get_status.return_value = _make_run(status=PipelineStatus.RUNNING)
         app["pipeline_service"] = mock_svc
 
         resp = await client.post(
@@ -434,7 +439,8 @@ class TestRetryStep:
             headers=AUTH_HEADERS,
         )
         assert resp.status == 200
-        mock_svc.retry_step.assert_called_once_with(run_id=RUN_ID, step="03-CLAUDE")
+        mock_svc.update_step_status.assert_called_once_with(run_id=RUN_ID, step="03-CLAUDE", status="pending")
+        mock_svc.get_status.assert_called_once_with(run_id=RUN_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +474,7 @@ class TestResponseEnvelope:
     @pytest.mark.asyncio
     async def test_success_envelope_has_data_and_meta(self, client, app):
         mock_svc = AsyncMock()
-        mock_svc.list_pipelines.return_value = []
+        mock_svc.list_runs.return_value = []
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(
@@ -486,7 +492,7 @@ class TestResponseEnvelope:
         from services.pipeline_service import PipelineNotFoundError
 
         mock_svc = AsyncMock()
-        mock_svc.get_pipeline_status.side_effect = PipelineNotFoundError("not found")
+        mock_svc.get_status.side_effect = PipelineNotFoundError("not found")
         app["pipeline_service"] = mock_svc
 
         resp = await client.get(

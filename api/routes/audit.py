@@ -59,10 +59,10 @@ async def export_audit_report(request: web.Request) -> web.Response:
 # I-082  GET /api/v1/audit/mcp-calls  -- recent MCP calls
 # ---------------------------------------------------------------------------
 async def get_recent_mcp_calls(request: web.Request) -> web.Response:
-    svc = request.app["audit_service"]
+    svc = request.app["health_service"]  # MCP calls are on HealthService, not AuditService
     limit = int(request.query.get("limit", 50))
     server_name = request.query.get("server_name")
-    results = await svc.get_recent_mcp_calls(
+    results = await svc.list_recent_mcp_calls(
         limit=limit,
         server_name=server_name,
     )

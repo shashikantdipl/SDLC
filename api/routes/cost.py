@@ -12,7 +12,7 @@ async def get_cost_report(request: web.Request) -> web.Response:
     scope = request.query.get("scope", "project")
     scope_id = request.query.get("scope_id")
     period_days = int(request.query.get("period_days", 30))
-    result = await svc.get_cost_report(
+    result = await svc.get_report(
         scope=scope,
         scope_id=scope_id,
         period_days=period_days,
@@ -37,7 +37,7 @@ async def check_budget(request: web.Request) -> web.Response:
 async def get_cost_anomalies(request: web.Request) -> web.Response:
     svc = request.app["cost_service"]
     project_id = request.query.get("project_id")
-    results = await svc.get_cost_anomalies(project_id=project_id)
+    results = await svc.get_anomalies(project_id=project_id)
     return success_response([r.model_dump(mode="json") for r in results])
 
 
@@ -52,7 +52,7 @@ async def update_budget_threshold(request: web.Request) -> web.Response:
     result = await svc.update_budget_threshold(
         scope=scope,
         scope_id=scope_id,
-        threshold=body["threshold"],
+        new_budget=body["new_budget"],
     )
     return success_response(result.model_dump(mode="json"))
 

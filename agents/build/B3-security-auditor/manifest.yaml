@@ -1,0 +1,132 @@
+# B3-security-auditor — Security Audit Agent
+# BUILD phase. Deep security analysis beyond B1's review.
+# Applies OWASP Top 10, STRIDE, CWE mapping, dependency scanning,
+# and compliance verification against SECURITY-ARCH (Doc 06).
+# Uses balanced tier — security reasoning requires depth.
+
+identity:
+  id: B3-security-auditor
+  name: Security Auditor
+  version: "1.0.0"
+  description: "Deep security audit — OWASP Top 10 mapping per file, STRIDE threat assessment, CWE vulnerability classification, dependency vulnerability scan, secrets detection, data flow analysis for PII exposure, and compliance verification against SECURITY-ARCH controls"
+  owner: platform-team
+  phase: build
+  extends: reviewer
+  mixins: []
+  tags: [security, owasp, stride, cwe, vulnerabilities, audit, compliance, pii]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the file being audited"
+      code_content:
+        type: string
+        description: "Full source code to audit"
+      language:
+        type: string
+        default: python
+      audit_scope:
+        type: array
+        items:
+          type: string
+          enum: [owasp, stride, cwe, secrets, pii, dependencies, data_flow, compliance, all]
+        default: [all]
+        description: "Which security dimensions to audit"
+      security_policy:
+        type: object
+        description: "Rules from SECURITY-ARCH (Doc 06)"
+        properties:
+          data_classification:
+            type: array
+            items:
+              type: object
+              properties:
+                entity:
+                  type: string
+                level:
+                  type: string
+          auth_requirements:
+            type: array
+            items:
+              type: string
+          rbac_roles:
+            type: array
+            items:
+              type: string
+      dependencies:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+        description: "Package dependencies to check for known CVEs"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/security-audit-v1.json
+  channels: [stdout]
+  writes_to: security_audit
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.50
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: on_critical_vulnerability
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: findings_critical > 0
+      action: slack_alert
+    - condition: findings_high > 2
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.95
+
+compliance:
+  data_inventory:
+    reads: [source_code, security_arch, dependencies]
+    writes: [audit_trail, security_audit]
+  regulations: [OWASP, SOC2, GDPR]

@@ -1,0 +1,103 @@
+# B6-doc-generator — Code Documentation Generator
+# BUILD phase. Generates docs from source code.
+# Uses fast tier — documentation is pattern-based, not deep reasoning.
+
+identity:
+  id: B6-doc-generator
+  name: Doc Generator
+  version: "1.0.0"
+  description: "Generates code documentation — module docstrings, function/method docstrings (Google style), class docstrings, README sections, API usage examples, parameter descriptions, return type docs, and exception docs"
+  owner: platform-team
+  phase: build
+  extends: co-pilot
+  mixins: []
+  tags: [documentation, docstrings, readme, api-docs, type-hints]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the file to document"
+      code_content:
+        type: string
+        description: "Full source code"
+      language:
+        type: string
+        default: python
+      doc_format:
+        type: string
+        enum: [google, numpy, sphinx, markdown]
+        default: google
+        description: "Docstring format style"
+      output_type:
+        type: string
+        enum: [docstrings, readme, api_reference, usage_examples, all]
+        default: all
+        description: "What type of documentation to generate"
+      project_context:
+        type: string
+        description: "Brief project description for context"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/doc-output-v1.json
+  channels: [stdout]
+  writes_to: documentation
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.08
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code]
+    writes: [audit_trail, documentation]
+  regulations: []

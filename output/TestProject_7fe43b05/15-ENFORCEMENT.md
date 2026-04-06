@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D15-enforcement-scaffolder", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "claude_doc", "arch_doc", "quality_doc", "security_arch"], "would_write_to": "enforcement_rules"}

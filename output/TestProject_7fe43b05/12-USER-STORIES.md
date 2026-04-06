@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D12-user-story-writer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "feature_catalog", "quality_doc", "arch_doc", "data_model", "api_contracts", "mcp_tool_spec", "design_spec"], "would_write_to": "user_stories"}

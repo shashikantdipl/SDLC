@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D0-brd-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "project_purpose"], "would_write_to": "brd_doc"}

@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D5-quality-spec-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "arch_doc", "feature_catalog"], "would_write_to": "quality_doc"}

@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D8-mcp-tool-spec-writer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "interaction_map", "arch_doc", "feature_catalog", "quality_doc"], "would_write_to": "mcp_tool_spec"}

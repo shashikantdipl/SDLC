@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D11-api-contract-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "data_model", "prd_doc", "mcp_tool_spec", "design_spec", "interaction_map"], "would_write_to": "api_contracts"}

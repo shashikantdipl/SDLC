@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D6-security-architect", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "arch_doc", "quality_doc", "feature_catalog"], "would_write_to": "security_arch"}

@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D9-design-spec-writer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "interaction_map", "prd_doc", "quality_doc", "feature_catalog"], "would_write_to": "design_spec"}

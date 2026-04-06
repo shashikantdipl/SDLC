@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D14-claude-md-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "roadmap_doc", "arch_doc", "data_model", "api_contracts"], "would_write_to": "claude_doc"}

@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D3-architecture-drafter", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "project_purpose"], "would_write_to": "arch_doc"}

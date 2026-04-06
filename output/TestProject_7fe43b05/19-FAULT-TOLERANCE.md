@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D19-fault-tolerance-planner", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "data_model", "api_contracts", "security_arch", "infra_design", "quality_doc"], "would_write_to": "fault_tolerance"}

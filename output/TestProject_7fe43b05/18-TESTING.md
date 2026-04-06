@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D18-test-strategy-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "quality_doc", "data_model", "claude_doc", "mcp_tool_spec", "design_spec", "interaction_map", "security_arch"], "would_write_to": "test_strategy"}

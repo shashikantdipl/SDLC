@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D10-data-model-designer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "feature_catalog", "quality_doc", "mcp_tool_spec", "design_spec", "interaction_map"], "would_write_to": "data_model"}

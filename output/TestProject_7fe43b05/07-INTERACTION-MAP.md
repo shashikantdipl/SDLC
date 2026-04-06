@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D7-interaction-map-generator", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "arch_doc", "feature_catalog", "quality_doc"], "would_write_to": "interaction_map"}

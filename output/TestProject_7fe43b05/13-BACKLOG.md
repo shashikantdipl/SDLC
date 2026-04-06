@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D13-backlog-builder", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "feature_catalog", "prd_doc", "arch_doc", "quality_doc", "mcp_tool_spec", "design_spec", "interaction_map", "user_stories"], "would_write_to": "backlog"}

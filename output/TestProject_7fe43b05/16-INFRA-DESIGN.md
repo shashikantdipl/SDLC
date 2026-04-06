@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D16-infra-designer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "security_arch", "quality_doc", "feature_catalog"], "would_write_to": "infra_design"}

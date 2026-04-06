@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D17-migration-planner", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "data_model", "arch_doc", "prd_doc", "security_arch", "brd_doc"], "would_write_to": "migration_plan"}

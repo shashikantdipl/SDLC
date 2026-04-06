@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D4-feature-extractor", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "prd_doc", "arch_doc"], "would_write_to": "feature_catalog"}

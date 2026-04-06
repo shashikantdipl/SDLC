@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D20-guardrails-spec-writer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "arch_doc", "security_arch", "enforcement_rules", "quality_doc"], "would_write_to": "guardrails_spec"}

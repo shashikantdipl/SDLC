@@ -1,0 +1,1 @@
+{"dry_run": true, "agent_id": "D21-compliance-matrix-writer", "model": "claude-sonnet-4-6", "provider": "anthropic", "model_tier": "balanced", "input_keys": ["project_name", "security_arch", "quality_doc", "data_model", "arch_doc", "guardrails_spec", "fault_tolerance"], "would_write_to": "compliance_matrix"}

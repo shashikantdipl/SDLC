@@ -1,0 +1,128 @@
+# B7-dependency-auditor — Dependency Audit Agent
+# BUILD phase. Scans dependencies for CVEs, licenses, freshness.
+# Uses fast tier — pattern matching on package lists.
+
+identity:
+  id: B7-dependency-auditor
+  name: Dependency Auditor
+  version: "1.0.0"
+  description: "Audits project dependencies for known CVEs, license compliance (no GPL in production), version freshness, unused packages, and generates SBOM inventory. Maps findings to SECURITY-ARCH supply chain policy."
+  owner: platform-team
+  phase: build
+  extends: reviewer
+  mixins: []
+  tags: [dependencies, cve, sbom, license, supply-chain, vulnerability]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, dependencies]
+    properties:
+      project_name:
+        type: string
+      dependencies:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            type:
+              type: string
+              enum: [runtime, dev]
+        description: "Package list from pyproject.toml or requirements.txt"
+      lock_file_deps:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+        description: "Transitive dependencies from lock file (optional)"
+      license_policy:
+        type: object
+        description: "License rules from SECURITY-ARCH"
+        properties:
+          allowed:
+            type: array
+            items:
+              type: string
+          forbidden:
+            type: array
+            items:
+              type: string
+      vulnerability_slas:
+        type: object
+        description: "Remediation SLAs from SECURITY-ARCH"
+        properties:
+          critical_hours:
+            type: integer
+          high_days:
+            type: integer
+          medium_days:
+            type: integer
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/dep-audit-v1.json
+  channels: [stdout]
+  writes_to: dependency_audit
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: on_critical_cve
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cve_critical > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [dependencies, security_arch]
+    writes: [audit_trail, dependency_audit]
+  regulations: [SOC2, SBOM]

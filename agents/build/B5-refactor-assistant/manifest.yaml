@@ -1,0 +1,104 @@
+# B5-refactor-assistant — Code Refactoring Agent
+# BUILD phase. Suggests and applies refactoring patterns.
+# Uses balanced tier — needs to reason about code structure.
+
+identity:
+  id: B5-refactor-assistant
+  name: Refactor Assistant
+  version: "1.0.0"
+  description: "Suggests and applies code refactoring — extract method, reduce cyclomatic complexity, simplify conditionals, improve naming, eliminate duplication, enforce single responsibility. Produces both analysis and refactored code."
+  owner: platform-team
+  phase: build
+  extends: co-pilot
+  mixins: []
+  tags: [refactoring, clean-code, complexity, duplication, naming, solid]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the file to refactor"
+      code_content:
+        type: string
+        description: "Full source code"
+      language:
+        type: string
+        default: python
+      refactor_goals:
+        type: array
+        items:
+          type: string
+          enum: [reduce_complexity, extract_methods, improve_naming, eliminate_duplication, single_responsibility, simplify_conditionals, all]
+        default: [all]
+      max_function_lines:
+        type: integer
+        default: 50
+        description: "Maximum lines per function before suggesting extraction"
+      max_cyclomatic_complexity:
+        type: integer
+        default: 10
+        description: "Maximum complexity before suggesting simplification"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/refactor-v1.json
+  channels: [stdout]
+  writes_to: refactored_code
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.50
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: on_structural_change
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.40
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code]
+    writes: [audit_trail, refactored_code]
+  regulations: []

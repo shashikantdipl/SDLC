@@ -1,0 +1,140 @@
+# O2-runbook-executor — Runbook Executor Agent
+# OPERATE phase. Executes step-by-step operational runbooks.
+# Uses fast tier — follows procedures, does not invent new ones.
+
+identity:
+  id: O2-runbook-executor
+  name: Runbook Executor
+  version: "1.0.0"
+  description: "Executes operational runbooks — follows step-by-step procedures for common incidents, validates each step before proceeding, captures execution log, and handles deviations from expected outcomes"
+  owner: platform-team
+  phase: operate
+  extends: ops-agent
+  mixins: []
+  tags: [runbook, execution, ops, procedures, recovery]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [runbook_id, incident_context]
+    properties:
+      runbook_id:
+        type: string
+        description: "Identifier for the runbook to execute (e.g. RB-RESTART-PAYMENT, RB-ROLLBACK-DEPLOY)"
+      incident_context:
+        type: object
+        description: "Context from the triggering incident"
+        properties:
+          incident_id:
+            type: string
+          sev_level:
+            type: string
+          affected_components:
+            type: array
+            items:
+              type: string
+          triage_summary:
+            type: string
+      runbook_steps:
+        type: array
+        description: "Ordered list of steps to execute"
+        items:
+          type: object
+          properties:
+            step_number:
+              type: integer
+            title:
+              type: string
+            command:
+              type: string
+              description: "Command or action to execute"
+            expected_output:
+              type: string
+              description: "What success looks like"
+            rollback:
+              type: string
+              description: "How to undo this step if it fails"
+            is_destructive:
+              type: boolean
+              description: "True if step modifies or deletes data/state"
+            timeout_seconds:
+              type: integer
+              description: "Max time to wait for step completion"
+      current_step:
+        type: integer
+        description: "Which step to resume from (default 1)"
+      previous_results:
+        type: array
+        description: "Results from previously executed steps"
+        items:
+          type: object
+          properties:
+            step_number:
+              type: integer
+            status:
+              type: string
+            output:
+              type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: runbook_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 20
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/runbook-execution-v1.json
+  channels: [stdout]
+  writes_to: runbook_execution
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: on_destructive_step
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: status == "failed"
+      action: slack_alert
+    - condition: status == "blocked"
+      action: page_oncall
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [runbook_steps, incident_context, previous_results]
+    writes: [audit_trail, runbook_execution]
+  regulations: []

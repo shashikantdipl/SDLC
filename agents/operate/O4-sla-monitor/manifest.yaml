@@ -1,0 +1,139 @@
+# O4-sla-monitor — SLA/SLO Compliance Monitor Agent
+# OPERATE phase. Tracks error budgets and predicts SLA breaches.
+# Uses fast tier — metric evaluation, not deep reasoning.
+
+identity:
+  id: O4-sla-monitor
+  name: SLA Monitor
+  version: "1.0.0"
+  description: "Monitors SLA/SLO compliance — tracks SLI metrics against SLO targets, calculates error budgets, predicts SLA breaches, and triggers alerts when error budget is burning too fast"
+  owner: platform-team
+  phase: operate
+  extends: ops-agent
+  mixins: []
+  tags: [sla, slo, sli, error-budget, monitoring, compliance]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [slo_definitions, current_metrics]
+    properties:
+      slo_definitions:
+        type: array
+        description: "SLO targets to monitor"
+        items:
+          type: object
+          properties:
+            service:
+              type: string
+              description: "Service name (e.g., api-gateway, auth-service)"
+            sli:
+              type: string
+              description: "SLI metric name (e.g., latency_p99, availability, error_rate)"
+            target:
+              type: number
+              description: "SLO target value (e.g., 99.9 for 99.9% availability)"
+            period:
+              type: string
+              description: "Measurement period (e.g., 30d, 7d, calendar_month)"
+      current_metrics:
+        type: object
+        description: "Actual SLI measurements for the current period"
+        properties:
+          timestamp:
+            type: string
+            description: "ISO 8601 timestamp of measurement"
+          measurements:
+            type: array
+            items:
+              type: object
+              properties:
+                service:
+                  type: string
+                sli:
+                  type: string
+                current_value:
+                  type: number
+                period_start:
+                  type: string
+                period_elapsed_pct:
+                  type: number
+      error_budget_history:
+        type: array
+        description: "Historical burn rate data over time"
+        items:
+          type: object
+          properties:
+            service:
+              type: string
+            sli:
+              type: string
+            timestamp:
+              type: string
+            budget_consumed_pct:
+              type: number
+            burn_rate:
+              type: number
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: slo_baseline_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/sla-report-v1.json
+  channels: [stdout]
+  writes_to: sla_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: error_budget_remaining_pct < 10
+      action: slack_alert
+    - condition: burn_rate > 2.0
+      action: pagerduty_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [slo_definitions, current_metrics, error_budget_history]
+    writes: [audit_trail, sla_report]
+  regulations: []

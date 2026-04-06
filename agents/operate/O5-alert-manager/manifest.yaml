@@ -1,0 +1,153 @@
+# O5-alert-manager — Alert Lifecycle Manager Agent
+# OPERATE phase. Deduplicates, correlates, suppresses, and routes alerts.
+# Uses fast tier — pattern matching and routing, not deep reasoning.
+
+identity:
+  id: O5-alert-manager
+  name: Alert Manager
+  version: "1.0.0"
+  description: "Manages alert lifecycle — deduplicates alerts, correlates related alerts into incidents, suppresses known-issue alerts, routes to correct team, and tracks alert-to-resolution metrics"
+  owner: platform-team
+  phase: operate
+  extends: ops-agent
+  mixins: []
+  tags: [alerts, dedup, correlation, routing, suppression, noise-reduction]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [alerts]
+    properties:
+      alerts:
+        type: array
+        description: "Incoming alerts to process"
+        items:
+          type: object
+          properties:
+            source:
+              type: string
+              description: "Alert source system (e.g., prometheus, cloudwatch, datadog)"
+            severity:
+              type: string
+              enum: [SEV1, SEV2, SEV3, SEV4]
+              description: "Alert severity level"
+            message:
+              type: string
+              description: "Alert message or description"
+            timestamp:
+              type: string
+              description: "ISO 8601 timestamp of alert firing"
+            component:
+              type: string
+              description: "Affected service or component"
+      known_issues:
+        type: array
+        description: "Active suppression rules for known issues"
+        items:
+          type: object
+          properties:
+            rule_id:
+              type: string
+            pattern:
+              type: string
+              description: "Regex or string match for alert message"
+            component:
+              type: string
+            reason:
+              type: string
+            auto_resolve_eta:
+              type: string
+            suppress_severities:
+              type: array
+              items:
+                type: string
+      routing_rules:
+        type: array
+        description: "Team assignment rules"
+        items:
+          type: object
+          properties:
+            component_pattern:
+              type: string
+            severity:
+              type: string
+            team:
+              type: string
+            channel:
+              type: string
+              enum: [pagerduty, slack, email]
+      correlation_rules:
+        type: array
+        description: "Rules for grouping related alerts"
+        items:
+          type: object
+          properties:
+            group_by:
+              type: string
+              description: "Field to group on (e.g., component)"
+            time_window_minutes:
+              type: integer
+              default: 10
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: alert_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/alert-actions-v1.json
+  channels: [stdout]
+  writes_to: alert_actions
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: noise_reduction_pct < 30
+      action: slack_alert
+    - condition: suppressed_sev1_count > 0
+      action: pagerduty_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [alerts, known_issues, routing_rules, correlation_rules]
+    writes: [audit_trail, alert_actions]
+  regulations: []

@@ -1,0 +1,148 @@
+# O1-incident-triage — Incident Triage Agent
+# OPERATE phase. First responder for production incidents.
+# Uses balanced tier — needs reasoning about root cause analysis.
+
+identity:
+  id: O1-incident-triage
+  name: Incident Triage
+  version: "1.0.0"
+  description: "Triages production incidents — classifies severity (SEV1-SEV4), identifies affected components, suggests root cause, recommends immediate actions, and routes to appropriate on-call team"
+  owner: platform-team
+  phase: operate
+  extends: ops-agent
+  mixins: []
+  tags: [incident, triage, severity, root-cause, on-call, ops]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [alert_data, system_health]
+    properties:
+      alert_data:
+        type: object
+        description: "Incoming alert from monitoring system"
+        properties:
+          source:
+            type: string
+            description: "Monitoring system that fired the alert (e.g. Datadog, PagerDuty, CloudWatch)"
+          message:
+            type: string
+            description: "Alert message text"
+          severity:
+            type: string
+            description: "Raw severity from monitoring system"
+          timestamp:
+            type: string
+            format: date-time
+            description: "When the alert fired"
+          metric_value:
+            type: number
+            description: "Current value of the metric that triggered the alert"
+          threshold:
+            type: number
+            description: "Threshold that was breached"
+      system_health:
+        type: object
+        description: "Current health status of all system components"
+        properties:
+          component_statuses:
+            type: object
+            description: "Map of component name to status (healthy/degraded/down)"
+      recent_changes:
+        type: array
+        description: "Deploys and config changes in the last 24 hours"
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              description: "deploy, config_change, infra_change"
+            timestamp:
+              type: string
+              format: date-time
+            author:
+              type: string
+            description:
+              type: string
+            commit_sha:
+              type: string
+      error_logs:
+        type: array
+        description: "Recent error log samples from affected services"
+        items:
+          type: object
+          properties:
+            service:
+              type: string
+            level:
+              type: string
+            message:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            stack_trace:
+              type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: incident_history_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/incident-triage-v1.json
+  channels: [stdout]
+  writes_to: incident_triage
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.30
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: on_sev1
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: sev_level == "SEV1"
+      action: page_oncall
+    - condition: confidence < 0.5
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [alert_data, system_health, error_logs, recent_changes]
+    writes: [audit_trail, incident_triage]
+  regulations: []

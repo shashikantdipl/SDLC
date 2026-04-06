@@ -1,0 +1,113 @@
+# B2-test-writer — Test Generation Agent
+# BUILD phase. Generates pytest tests from source code + acceptance criteria.
+# Produces unit tests, integration tests, and edge case tests.
+# Uses balanced tier — needs to reason about code paths and edge cases.
+
+identity:
+  id: B2-test-writer
+  name: Test Writer
+  version: "1.0.0"
+  description: "Generates pytest test code from source code and acceptance criteria — unit tests with mocks, integration tests with testcontainers, edge case tests, error path tests, and parity tests. Follows per-module coverage thresholds from QUALITY."
+  owner: platform-team
+  phase: build
+  extends: co-pilot
+  mixins: []
+  tags: [testing, test-generation, pytest, unit-test, integration-test, coverage]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, source_code]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the source file to write tests for"
+      source_code:
+        type: string
+        description: "Full source code to generate tests for"
+      language:
+        type: string
+        default: python
+      test_type:
+        type: string
+        enum: [unit, integration, edge_case, parity, all]
+        default: all
+        description: "What type of tests to generate"
+      acceptance_criteria:
+        type: array
+        items:
+          type: string
+        description: "Given/When/Then ACs from user stories to cover"
+      coverage_target:
+        type: integer
+        default: 90
+        description: "Target line coverage percentage for this module"
+      existing_tests:
+        type: string
+        description: "Existing test file content (if any) to avoid duplication"
+      dependencies:
+        type: array
+        items:
+          type: string
+        description: "External dependencies to mock (DB, API, LLM provider)"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/test-code-v1.json
+  channels: [stdout]
+  writes_to: test_code
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.50
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.40
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code, user_stories, quality_doc]
+    writes: [audit_trail, test_code]
+  regulations: []

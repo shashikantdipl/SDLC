@@ -1,0 +1,141 @@
+# D21-compliance-matrix-writer — Compliance Matrix
+# Step 21 in 24-step pipeline. LAST generation step in Phase E.
+# Reads SECURITY-ARCH (06) + QUALITY (05) + DATA-MODEL (10) +
+#   ARCH (03) + GUARDRAILS-SPEC (20) + FAULT-TOLERANCE (19).
+# THE document auditors ask for. Cross-maps every regulatory requirement
+# to platform features, controls, and evidence.
+# This is NOT a security doc (that's Doc 06). This is the TRACEABILITY doc.
+
+identity:
+  id: D21-compliance-matrix-writer
+  name: Compliance Matrix Writer
+  version: "1.0.0"
+  description: "Generates compliance matrix — cross-maps SOC 2 Trust Service Criteria, GDPR articles, EU AI Act requirements, and NIST AI RMF to platform features, controls, guardrails, and evidence locations. The document auditors actually need."
+  owner: platform-team
+  phase: design
+  extends: co-pilot
+  mixins: []
+  tags: [compliance, soc2, gdpr, eu-ai-act, nist, audit, traceability, matrix]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, regulatory_frameworks]
+    properties:
+      project_name:
+        type: string
+      regulatory_frameworks:
+        type: array
+        items:
+          type: string
+        description: "Applicable frameworks (SOC2, GDPR, EU_AI_ACT, NIST_AI_RMF)"
+      security_controls:
+        type: array
+        items:
+          type: object
+          properties:
+            control_id:
+              type: string
+            description:
+              type: string
+            category:
+              type: string
+        description: "Security controls from SECURITY-ARCH"
+      quality_nfrs:
+        type: array
+        items:
+          type: string
+        description: "NFRs (Q-NNN) from QUALITY"
+      data_entities:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            classification:
+              type: string
+        description: "Data entities with classification from DATA-MODEL"
+      guardrails:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            layer:
+              type: string
+            description:
+              type: string
+        description: "Guardrails from GUARDRAILS-SPEC"
+      fault_tolerance_scenarios:
+        type: array
+        items:
+          type: string
+        description: "P0/P1 scenarios from FAULT-TOLERANCE"
+      features:
+        type: array
+        items:
+          type: string
+        description: "Feature IDs (F-NNN) from FEATURE-CATALOG"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/compliance-matrix-v1.json
+  channels: [stdout]
+  writes_to: compliance_matrix
+
+safety:
+  autonomy_tier: T3
+  max_budget_usd: 1.00
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 30
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [security_arch, quality_doc, data_model, arch_doc, guardrails_spec, fault_tolerance]
+    writes: [audit_trail, compliance_matrix]
+  regulations: [SOC2, GDPR, EU_AI_ACT, NIST_AI_RMF]

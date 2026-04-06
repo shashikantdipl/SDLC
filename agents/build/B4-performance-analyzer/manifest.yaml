@@ -1,0 +1,118 @@
+# B4-performance-analyzer — Performance Analysis Agent
+# BUILD phase. Identifies bottlenecks, N+1 queries, memory leaks.
+# Uses fast tier — analysis is pattern-matching, not deep reasoning.
+# Checks against QUALITY NFRs (Q-001 through Q-010 performance targets).
+
+identity:
+  id: B4-performance-analyzer
+  name: Performance Analyzer
+  version: "1.0.0"
+  description: "Analyzes code for performance issues — N+1 queries, unbounded queries, missing indexes, connection pool misuse, blocking I/O in async code, memory leaks, LLM token waste, and missing caching opportunities. Maps findings to QUALITY performance NFRs."
+  owner: platform-team
+  phase: build
+  extends: reviewer
+  mixins: []
+  tags: [performance, n-plus-one, queries, memory, caching, optimization, profiling]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the file being analyzed"
+      code_content:
+        type: string
+        description: "Full source code to analyze"
+      language:
+        type: string
+        default: python
+      performance_nfrs:
+        type: array
+        items:
+          type: string
+        description: "Performance NFRs from QUALITY (Q-001 to Q-010)"
+      database_schema:
+        type: object
+        description: "Tables and indexes from DATA-MODEL for query analysis"
+        properties:
+          tables:
+            type: array
+            items:
+              type: string
+          indexes:
+            type: array
+            items:
+              type: string
+      expected_load:
+        type: object
+        description: "Expected traffic patterns"
+        properties:
+          requests_per_second:
+            type: integer
+          concurrent_users:
+            type: integer
+          data_volume:
+            type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/perf-analysis-v1.json
+  channels: [stdout]
+  writes_to: performance_analysis
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: cost_usd > 0.08
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code, quality_doc, data_model]
+    writes: [audit_trail, performance_analysis]
+  regulations: []

@@ -1,0 +1,110 @@
+# P5-feature-flag-manager — Feature Flag Lifecycle Agent
+# DEPLOY phase. Manages feature flags for progressive rollout and kill switches.
+# Uses fast tier — deterministic flag operations, no deep reasoning needed.
+
+identity:
+  id: P5-feature-flag-manager
+  name: Feature Flag Manager
+  version: "1.0.0"
+  description: "Manages feature flags for progressive rollout — flag lifecycle (create/enable/disable/archive), percentage-based rollout, user targeting, kill switches, and flag hygiene (stale flag detection)"
+  owner: platform-team
+  phase: deploy
+  extends: ops-agent
+  mixins: []
+  tags: [feature-flags, rollout, progressive, kill-switch, toggle]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [action, flag_name]
+    properties:
+      action:
+        type: string
+        enum: [create, enable, disable, rollout, archive, audit]
+        description: "Flag lifecycle action to perform"
+      flag_name:
+        type: string
+        description: "Unique flag identifier (kebab-case)"
+      rollout_percentage:
+        type: number
+        minimum: 0
+        maximum: 100
+        description: "Target rollout percentage (for rollout action)"
+      target_users:
+        type: array
+        items:
+          type: string
+        description: "Specific user IDs or segments to target"
+      description:
+        type: string
+        description: "Human-readable description of the flag's purpose"
+      flag_type:
+        type: string
+        enum: [release, experiment, ops, permission]
+        description: "Category of the feature flag"
+      owner:
+        type: string
+        description: "Team or person responsible for this flag"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: flag_registry
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/feature-flag-plan-v1.json
+  channels: [stdout]
+  writes_to: feature_flag_plan
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: action == "disable" and rollout_pct > 50
+      action: slack_alert
+    - condition: stale_flags_count > 10
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [flag_registry, codebase_references, rollout_history]
+    writes: [audit_trail, feature_flag_plan]
+  regulations: []

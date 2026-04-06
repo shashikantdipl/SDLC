@@ -1,0 +1,122 @@
+# P2-cdk-iac-reviewer — Infrastructure-as-Code Review Agent
+# DEPLOY phase. Reviews Terraform/CDK for security, cost, and compliance.
+# Uses fast tier — pattern matching against known misconfigurations.
+
+identity:
+  id: P2-cdk-iac-reviewer
+  name: IaC Reviewer
+  version: "1.0.0"
+  description: "Reviews Infrastructure-as-Code (Terraform/CDK) for security misconfigurations, cost optimization, drift detection, and best practices compliance"
+  owner: platform-team
+  phase: deploy
+  extends: reviewer
+  mixins: []
+  tags: [iac, terraform, cdk, infrastructure, security, cost]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [iac_content, iac_tool]
+    properties:
+      iac_content:
+        type: string
+        description: "Raw IaC file content (Terraform HCL or CDK TypeScript/Python)"
+      iac_tool:
+        type: string
+        description: "IaC tool being used"
+        enum: [terraform, cdk-typescript, cdk-python, cloudformation, pulumi]
+      cloud_provider:
+        type: string
+        description: "Target cloud provider"
+        enum: [aws, azure, gcp]
+        default: aws
+      plan_output:
+        type: string
+        description: "terraform plan or cdk diff output (optional)"
+      existing_state:
+        type: object
+        description: "Current live infrastructure state for drift detection"
+        properties:
+          resources:
+            type: array
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                id:
+                  type: string
+                attributes:
+                  type: object
+      cost_constraints:
+        type: object
+        description: "Budget limits"
+        properties:
+          monthly_budget_usd:
+            type: number
+          alert_threshold_pct:
+            type: number
+            default: 80
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: iac_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/iac-review-v1.json
+  channels: [stdout]
+  writes_to: iac_review
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: severity == "critical"
+      action: slack_alert
+    - condition: cost_delta_pct > 20
+      action: notify_finance
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [iac_content, terraform_state, cloud_config]
+    writes: [audit_trail, iac_review]
+  regulations: []

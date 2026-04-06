@@ -1,0 +1,120 @@
+# P3-release-notes — Release Notes Generator Agent
+# DEPLOY phase. Generates structured release notes from commits and PRs.
+# Uses fast tier — text summarization, not deep reasoning.
+
+identity:
+  id: P3-release-notes
+  name: Release Notes Generator
+  version: "1.0.0"
+  description: "Generates release notes from git commits, PR descriptions, and changelog — audience-aware (internal engineering vs external customer-facing)"
+  owner: platform-team
+  phase: deploy
+  extends: co-pilot
+  mixins: []
+  tags: [release, notes, changelog, versioning]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [commits, version]
+    properties:
+      commits:
+        type: array
+        description: "Git commits since last release"
+        items:
+          type: object
+          properties:
+            sha:
+              type: string
+            message:
+              type: string
+            author:
+              type: string
+            date:
+              type: string
+              format: date-time
+            pr_number:
+              type: integer
+            pr_title:
+              type: string
+            pr_body:
+              type: string
+            files_changed:
+              type: array
+              items:
+                type: string
+      version:
+        type: string
+        description: "Semantic version for this release (e.g., 2.4.0)"
+      previous_version:
+        type: string
+        description: "Previous release version for comparison"
+      audience:
+        type: string
+        description: "Target audience for the notes"
+        enum: [internal, external, both]
+        default: both
+      product_name:
+        type: string
+        description: "Product name for the release header"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: release_history
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/release-notes-v1.json
+  channels: [stdout]
+  writes_to: release_notes
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: breaking_changes > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [git_commits, pr_descriptions, changelog]
+    writes: [audit_trail, release_notes]
+  regulations: []

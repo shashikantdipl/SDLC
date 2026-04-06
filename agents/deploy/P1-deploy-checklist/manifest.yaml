@@ -1,0 +1,166 @@
+# P1-deploy-checklist — Pre-Deployment Checklist Agent
+# DEPLOY phase. Validates all prerequisites before production deploy.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: P1-deploy-checklist
+  name: Deploy Checklist
+  version: "1.0.0"
+  description: "Pre-deployment checklist — validates all prerequisites before production deploy: tests passed, migrations applied, secrets configured, rollback plan ready, monitoring enabled, on-call staffed, feature flags set, load test passed"
+  owner: platform-team
+  phase: deploy
+  extends: ci-gate
+  mixins: []
+  tags: [deploy, checklist, pre-deploy, production, readiness]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [environment, build_id, deployment_plan]
+    properties:
+      environment:
+        type: string
+        description: "Target environment (staging, production, canary)"
+        enum: [staging, production, canary]
+      build_id:
+        type: string
+        description: "CI build identifier to deploy"
+      deployment_plan:
+        type: object
+        description: "Deployment plan details"
+        properties:
+          strategy:
+            type: string
+            enum: [rolling, blue-green, canary]
+          rollback_plan:
+            type: object
+            properties:
+              exists:
+                type: boolean
+              tested:
+                type: boolean
+              runbook_url:
+                type: string
+          test_results:
+            type: object
+            properties:
+              unit_passed:
+                type: boolean
+              integration_passed:
+                type: boolean
+              e2e_passed:
+                type: boolean
+              coverage_pct:
+                type: number
+          migrations:
+            type: object
+            properties:
+              pending:
+                type: integer
+              reversible:
+                type: boolean
+          secrets:
+            type: object
+            properties:
+              all_configured:
+                type: boolean
+              rotation_current:
+                type: boolean
+          monitoring:
+            type: object
+            properties:
+              dashboards_ready:
+                type: boolean
+              alerts_configured:
+                type: boolean
+              slis_defined:
+                type: boolean
+          on_call:
+            type: object
+            properties:
+              staffed:
+                type: boolean
+              contact:
+                type: string
+          feature_flags:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                state:
+                  type: string
+                  enum: [enabled, disabled, percentage]
+          load_test:
+            type: object
+            properties:
+              passed:
+                type: boolean
+              p99_ms:
+                type: number
+              rps_achieved:
+                type: number
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: deployment_history
+
+planning:
+  strategy: sequential
+  max_steps: 12
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/deploy-checklist-v1.json
+  channels: [stdout]
+  writes_to: deploy_checklist
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: verdict == "fail"
+      action: slack_alert
+    - condition: environment == "production"
+      action: page_on_call
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [deployment_plan, test_results, monitoring_config, on_call_schedule]
+    writes: [audit_trail, deploy_checklist]
+  regulations: []

@@ -1,0 +1,129 @@
+# P4-rollback-manager — Deployment Rollback Agent
+# DEPLOY phase. Assesses rollback criteria, plans rollback steps, validates data safety.
+# Uses balanced tier — needs reasoning about data safety and migration reversibility.
+
+identity:
+  id: P4-rollback-manager
+  name: Rollback Manager
+  version: "1.0.0"
+  description: "Manages deployment rollbacks — assesses rollback criteria, generates rollback plan, validates data safety, and coordinates rollback execution across application + database + infrastructure layers"
+  owner: platform-team
+  phase: deploy
+  extends: ops-agent
+  mixins: []
+  tags: [rollback, deployment, recovery, safety, data-integrity]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [deployment_id, rollback_reason]
+    properties:
+      deployment_id:
+        type: string
+        description: "Unique identifier of the deployment to rollback"
+      rollback_reason:
+        type: string
+        description: "Reason for initiating rollback (e.g., error spike, performance degradation)"
+      current_version:
+        type: string
+        description: "Currently deployed version tag or commit SHA"
+      previous_version:
+        type: string
+        description: "Version to rollback to"
+      affected_services:
+        type: array
+        items:
+          type: string
+        description: "List of service names affected by the rollback"
+      database_changes:
+        type: array
+        items:
+          type: object
+          properties:
+            migration_name:
+              type: string
+            direction:
+              type: string
+              enum: [up, down]
+            destructive:
+              type: boolean
+            tables_affected:
+              type: array
+              items:
+                type: string
+        description: "Array of migrations applied in this deployment"
+      health_metrics:
+        type: object
+        description: "Current health metrics triggering the rollback"
+        properties:
+          error_rate_pct:
+            type: number
+          latency_p99_ms:
+            type: number
+          success_rate_pct:
+            type: number
+          affected_users_count:
+            type: integer
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: rollback_history
+
+planning:
+  strategy: sequential
+  max_steps: 12
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/rollback-plan-v1.json
+  channels: [stdout]
+  writes_to: rollback_plan
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.30
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: always
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: rollback_safe == false
+      action: slack_alert
+    - condition: data_loss_risk in ["medium", "high"]
+      action: page_oncall
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [deployment_manifest, migration_files, health_metrics, infra_state]
+    writes: [audit_trail, rollback_plan]
+  regulations: []

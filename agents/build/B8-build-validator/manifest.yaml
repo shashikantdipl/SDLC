@@ -1,0 +1,154 @@
+# B8-build-validator — Build Validation / CI Gate Agent
+# BUILD phase. Validates builds pass all quality gates before merge.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: B8-build-validator
+  name: Build Validator
+  version: "1.0.0"
+  description: "Validates builds against CI quality gates — lint (ruff), type check (mypy), test coverage per module, schema validation, migration safety (UP+DOWN), Docker build, manifest validation, and production readiness checklist. Acts as automated merge gate."
+  owner: platform-team
+  phase: build
+  extends: ci-gate
+  mixins: []
+  tags: [ci, build, validation, lint, typecheck, coverage, gate, merge]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [project_name, build_artifacts]
+    properties:
+      project_name:
+        type: string
+      build_artifacts:
+        type: object
+        description: "Build outputs to validate"
+        properties:
+          lint_output:
+            type: string
+            description: "ruff check output (or empty if clean)"
+          typecheck_output:
+            type: string
+            description: "mypy output (or empty if clean)"
+          test_results:
+            type: object
+            properties:
+              passed:
+                type: integer
+              failed:
+                type: integer
+              skipped:
+                type: integer
+              coverage_pct:
+                type: number
+              coverage_by_module:
+                type: object
+          migration_files:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                has_up:
+                  type: boolean
+                has_down:
+                  type: boolean
+          docker_build:
+            type: object
+            properties:
+              success:
+                type: boolean
+              image_size_mb:
+                type: number
+              build_time_seconds:
+                type: number
+          manifest_validation:
+            type: object
+            properties:
+              total:
+                type: integer
+              valid:
+                type: integer
+              invalid:
+                type: integer
+      quality_gates:
+        type: object
+        description: "Thresholds from QUALITY + ENFORCEMENT"
+        properties:
+          min_coverage_pct:
+            type: integer
+            default: 85
+          max_lint_errors:
+            type: integer
+            default: 0
+          max_type_errors:
+            type: integer
+            default: 0
+          max_docker_image_mb:
+            type: integer
+            default: 500
+          require_migration_down:
+            type: boolean
+            default: true
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/build-validation-v1.json
+  channels: [stdout]
+  writes_to: build_validation
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.05
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: verdict == "fail"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [build_artifacts, quality_doc, enforcement_rules]
+    writes: [audit_trail, build_validation]
+  regulations: []

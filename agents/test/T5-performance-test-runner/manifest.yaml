@@ -1,0 +1,111 @@
+# T5-performance-test-runner — Performance Test Runner Agent
+# TEST phase. Designs performance tests and benchmarks.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: T5-performance-test-runner
+  name: Performance Test Runner
+  version: "1.0.0"
+  description: "Designs performance tests and benchmarks — load tests (k6/locust), latency benchmarks mapped to Q-NNN NFRs, throughput tests, memory profiling, and LLM response time tracking per provider."
+  owner: platform-team
+  phase: test
+  extends: ci-gate
+  mixins: []
+  tags: [testing, ci, quality, performance, benchmarks]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [endpoints_to_test, performance_nfrs]
+    properties:
+      endpoints_to_test:
+        type: array
+        description: "Array of URL + HTTP method pairs to test"
+        items:
+          type: object
+          properties:
+            url:
+              type: string
+            method:
+              type: string
+              enum: [GET, POST, PUT, PATCH, DELETE]
+      performance_nfrs:
+        type: array
+        description: "Q-NNN NFR targets to validate against"
+        items:
+          type: string
+      expected_load:
+        type: object
+        description: "Expected load in requests per second and concurrent users"
+        properties:
+          rps:
+            type: number
+          concurrent_users:
+            type: number
+      llm_providers:
+        type: array
+        description: "LLM providers to benchmark"
+        items:
+          type: string
+          enum: [anthropic, openai, ollama]
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: benchmark_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/performance-tests-v1.json
+  channels: [stdout]
+  writes_to: performance_tests
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: latency_p99 > threshold
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [endpoints, nfr_targets, quality_doc]
+    writes: [audit_trail, performance_tests]
+  regulations: []

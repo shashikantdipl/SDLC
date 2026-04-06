@@ -1,0 +1,104 @@
+# T1-static-analyser — Static Analysis Agent
+# TEST phase. Runs static analysis on code — linting, type checking, complexity.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: T1-static-analyser
+  name: Static Analyser
+  version: "1.0.0"
+  description: "Runs static analysis on code — linting (ruff), type checking (mypy), complexity metrics (radon), dead code detection, import analysis, and coding standard compliance. Produces structured report with fix suggestions."
+  owner: platform-team
+  phase: test
+  extends: ci-gate
+  mixins: []
+  tags: [testing, ci, quality, static-analysis, linting]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path to the file to analyse"
+      code_content:
+        type: string
+        description: "Raw source code to analyse"
+      language:
+        type: string
+        description: "Programming language (e.g. python, typescript)"
+      lint_config:
+        type: object
+        description: "Linting configuration"
+        properties:
+          rules:
+            type: array
+            description: "Lint rule IDs to enforce"
+          line_length:
+            type: integer
+            description: "Maximum line length"
+      typecheck_strictness:
+        type: string
+        default: strict
+        description: "mypy strictness level: strict | basic | off"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: rule_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/static-analysis-v1.json
+  channels: [stdout]
+  writes_to: static_analysis
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: overall_score < 50
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code, lint_config, quality_doc]
+    writes: [audit_trail, static_analysis]
+  regulations: []

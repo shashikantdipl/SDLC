@@ -1,0 +1,133 @@
+# T3-coverage-gate — Coverage Gate Agent
+# TEST phase. Enforces per-module test coverage thresholds.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: T3-coverage-gate
+  name: Coverage Gate
+  version: "1.0.0"
+  description: "Enforces per-module test coverage thresholds — compares actual coverage against QUALITY targets (AI 95%, business 90%, handlers 80%, UI 70%), identifies uncovered critical paths, and produces coverage gap report."
+  owner: platform-team
+  phase: test
+  extends: ci-gate
+  mixins: []
+  tags: [testing, ci, quality, coverage, gate]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [coverage_report, coverage_thresholds]
+    properties:
+      coverage_report:
+        type: object
+        description: "Per-file and per-module coverage percentages"
+        properties:
+          modules:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                coverage_pct:
+                  type: number
+                files:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      file:
+                        type: string
+                      coverage_pct:
+                        type: number
+                      uncovered_lines:
+                        type: array
+      coverage_thresholds:
+        type: object
+        description: "Per-module coverage targets from QUALITY document"
+        properties:
+          ai:
+            type: number
+            default: 95
+          business:
+            type: number
+            default: 90
+          handlers:
+            type: number
+            default: 80
+          ui:
+            type: number
+            default: 70
+      critical_paths:
+        type: array
+        description: "Functions/paths that must have 100% coverage"
+        items:
+          type: object
+          properties:
+            path:
+              type: string
+            function:
+              type: string
+            description:
+              type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: threshold_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/coverage-verdict-v1.json
+  channels: [stdout]
+  writes_to: coverage_verdict
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: verdict == "fail"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [coverage_report, quality_doc, critical_paths]
+    writes: [audit_trail, coverage_verdict]
+  regulations: []

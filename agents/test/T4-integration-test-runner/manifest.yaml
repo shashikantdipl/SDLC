@@ -1,0 +1,104 @@
+# T4-integration-test-runner — Integration Test Runner Agent
+# TEST phase. Designs and validates integration tests across services.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: T4-integration-test-runner
+  name: Integration Test Runner
+  version: "1.0.0"
+  description: "Designs and validates integration tests — end-to-end flows across MCP, REST, and Dashboard interfaces, database integration with testcontainers, cross-service interactions, and parity tests (MCP vs REST return same data)."
+  owner: platform-team
+  phase: test
+  extends: ci-gate
+  mixins: []
+  tags: [testing, ci, quality, integration, e2e]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [test_scenario, services_involved]
+    properties:
+      test_scenario:
+        type: string
+        description: "Description of integration to test"
+      services_involved:
+        type: array
+        items:
+          type: string
+        description: "Array of service names involved in the integration"
+      interfaces:
+        type: array
+        items:
+          type: string
+        description: "Interfaces under test (mcp/rest/dashboard)"
+      database_tables:
+        type: array
+        items:
+          type: string
+        description: "Database tables touched by the integration"
+      expected_flow:
+        type: array
+        items:
+          type: string
+        description: "Step-by-step expected behavior of the integration"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: integration_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/integration-tests-v1.json
+  channels: [stdout]
+  writes_to: integration_tests
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: verdict == "fail"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [test_scenarios, api_contracts, mcp_tool_spec]
+    writes: [audit_trail, integration_tests]
+  regulations: []

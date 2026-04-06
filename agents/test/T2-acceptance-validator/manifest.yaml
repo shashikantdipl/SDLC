@@ -1,0 +1,114 @@
+# T2-acceptance-validator — Acceptance Validation Agent
+# TEST phase. Validates implementation against acceptance criteria.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: T2-acceptance-validator
+  name: Acceptance Validator
+  version: "1.0.0"
+  description: "Validates implementation against acceptance criteria — maps Given/When/Then ACs from user stories to test results, identifies untested ACs, and produces acceptance coverage report."
+  owner: platform-team
+  phase: test
+  extends: ci-gate
+  mixins: []
+  tags: [testing, ci, quality, acceptance, validation]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [acceptance_criteria, test_results]
+    properties:
+      acceptance_criteria:
+        type: array
+        description: "Given/When/Then acceptance criteria from user stories"
+        items:
+          type: object
+          properties:
+            ac_id:
+              type: string
+            given:
+              type: string
+            when:
+              type: string
+            then:
+              type: string
+      test_results:
+        type: array
+        description: "Passed and failed test results"
+        items:
+          type: object
+          properties:
+            test_id:
+              type: string
+            name:
+              type: string
+            status:
+              type: string
+              enum: [passed, failed, skipped]
+      code_coverage:
+        type: object
+        description: "Code coverage data to correlate with ACs"
+      feature_id:
+        type: string
+        description: "Feature identifier linking ACs to the feature under test"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: ac_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/acceptance-report-v1.json
+  channels: [stdout]
+  writes_to: acceptance_report
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: coverage_pct < 80
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [acceptance_criteria, test_results, user_stories]
+    writes: [audit_trail, acceptance_report]
+  regulations: []

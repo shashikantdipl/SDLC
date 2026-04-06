@@ -1,0 +1,117 @@
+# B9-migration-writer — SQL Migration Generator
+# BUILD phase. LAST BUILD agent. Generates migration SQL from schema changes.
+# Uses balanced tier — needs to reason about backwards compatibility.
+
+identity:
+  id: B9-migration-writer
+  name: Migration Writer
+  version: "1.0.0"
+  description: "Generates PostgreSQL migration SQL files — UP and DOWN sections, zero-downtime ALTER patterns, backwards-compatible changes, index creation, RLS policy updates, and data backfill scripts. Validates against existing schema from DATA-MODEL."
+  owner: platform-team
+  phase: build
+  extends: co-pilot
+  mixins: []
+  tags: [migration, sql, postgresql, schema, ddl, alter, zero-downtime]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [change_description]
+    properties:
+      change_description:
+        type: string
+        description: "What schema change is needed (e.g., 'Add provider column to cost_metrics table')"
+      current_schema:
+        type: array
+        items:
+          type: object
+          properties:
+            table:
+              type: string
+            columns:
+              type: array
+              items:
+                type: string
+        description: "Current table schemas from DATA-MODEL"
+      migration_number:
+        type: integer
+        description: "Next migration number (e.g., 10 for 010_description.sql)"
+      existing_migrations:
+        type: array
+        items:
+          type: string
+        description: "List of existing migration filenames"
+      constraints:
+        type: object
+        description: "Migration constraints"
+        properties:
+          zero_downtime:
+            type: boolean
+            default: true
+          backwards_compatible:
+            type: boolean
+            default: true
+          max_lock_time_seconds:
+            type: integer
+            default: 5
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 5
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/migration-v1.json
+  channels: [stdout]
+  writes_to: migration_sql
+
+safety:
+  autonomy_tier: T2
+  max_budget_usd: 0.30
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: on_destructive_change
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: has_drop_table == true
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.03
+    confidence_above: 0.92
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [data_model, existing_migrations]
+    writes: [audit_trail, migration_sql]
+  regulations: []

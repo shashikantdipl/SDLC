@@ -1,0 +1,126 @@
+# B1-code-reviewer — Code Review Agent
+# BUILD phase. Reviews code for quality, patterns, bugs, security.
+# Unlike DESIGN agents, BUILD agents operate on CODE not documents.
+# Uses balanced tier — needs strong reasoning for code analysis.
+# Verified with real API at $0.134 per invocation.
+
+identity:
+  id: B1-code-reviewer
+  name: Code Reviewer
+  version: "1.0.0"
+  description: "Reviews code for quality issues, pattern violations, security vulnerabilities, performance concerns, and adherence to CLAUDE.md rules. Produces structured review with severity-rated findings, line references, and fix suggestions."
+  owner: platform-team
+  phase: build
+  extends: reviewer
+  mixins: []
+  tags: [code-review, quality, security, patterns, bugs, linting]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.1
+  max_tokens: 8192
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [file_path, code_content]
+    properties:
+      file_path:
+        type: string
+        description: "Path of the file being reviewed (e.g., services/pipeline_service.py)"
+      code_content:
+        type: string
+        description: "Full source code content to review"
+      language:
+        type: string
+        default: python
+        description: "Programming language (python, typescript, sql, yaml)"
+      review_focus:
+        type: array
+        items:
+          type: string
+          enum: [quality, security, performance, patterns, bugs, all]
+        default: [all]
+        description: "What aspects to focus the review on"
+      project_rules:
+        type: object
+        description: "Rules from CLAUDE.md — forbidden patterns, required patterns"
+        properties:
+          forbidden_patterns:
+            type: array
+            items:
+              type: string
+          required_patterns:
+            type: array
+            items:
+              type: string
+          coverage_threshold:
+            type: integer
+      context:
+        type: object
+        description: "Optional context — PR description, related files, ticket reference"
+        properties:
+          pr_description:
+            type: string
+          related_files:
+            type: array
+            items:
+              type: string
+          ticket_id:
+            type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: exception_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/code-review-v1.json
+  channels: [stdout]
+  writes_to: code_review
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.50
+  audit_logging: true
+  pii_scanning: true
+  hitl:
+    enabled: false
+    trigger: on_critical_finding
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: findings_critical > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.05
+    confidence_above: 0.90
+    consecutive_days: 21
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [source_code, claude_doc]
+    writes: [audit_trail, code_review]
+  regulations: []

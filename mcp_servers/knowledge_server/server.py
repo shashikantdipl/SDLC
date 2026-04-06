@@ -290,20 +290,43 @@ async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> list[
 
 async def _dispatch(name: str, arguments: dict[str, Any]) -> Any:
     # --- KnowledgeService ---
+    # Explicit parameter mapping: tool schema names → service parameter names
     if name == "search_exceptions":
-        return await _knowledge_service.search(**arguments)
+        return await _knowledge_service.search(
+            query=arguments.get("query", ""),
+            tier=arguments.get("tier"),
+            limit=int(arguments.get("limit", 20)),
+        )
     if name == "create_exception":
-        return await _knowledge_service.create_exception(**arguments)
+        return await _knowledge_service.create_exception(
+            title=arguments.get("title", ""),
+            rule=arguments.get("rule", ""),
+            severity=arguments.get("severity", "WARNING"),
+            tier=arguments.get("tier", "client"),
+            created_by=arguments.get("created_by", "mcp_user"),
+            metadata=arguments.get("metadata", {}),
+        )
     if name == "promote_exception":
-        return await _knowledge_service.promote(**arguments)
+        return await _knowledge_service.promote(
+            exception_id=arguments.get("exception_id", ""),
+            target_tier=arguments.get("target_tier", ""),
+            promoted_by=arguments.get("promoted_by", "mcp_user"),
+        )
     if name == "list_exceptions":
-        return await _knowledge_service.list_exceptions(**arguments)
+        return await _knowledge_service.list_exceptions(
+            tier=arguments.get("tier"),
+            active_only=bool(arguments.get("active_only", True)),
+            limit=int(arguments.get("limit", 50)),
+        )
 
     # --- HealthService (system tools) ---
     if name == "get_mcp_status":
-        return await _health_service.get_mcp_status(**arguments)
+        return await _health_service.get_mcp_status()
     if name == "list_recent_mcp_calls":
-        return await _health_service.list_recent_mcp_calls(**arguments)
+        return await _health_service.list_recent_mcp_calls(
+            limit=int(arguments.get("limit", 50)),
+            server_name=arguments.get("server_name"),
+        )
 
     raise ValueError(f"Unknown tool: {name}")
 

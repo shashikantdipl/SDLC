@@ -63,7 +63,7 @@ async def test_search_exceptions_calls_service(services):
         {"exception_id": "exc_a1b2c3d4e5f6g7h8", "title": "Rate limit pattern"}
     ]
     result = await handle_call_tool("search_exceptions", {"query": "rate limiting"})
-    services["knowledge"].search.assert_awaited_once_with(query="rate limiting")
+    services["knowledge"].search.assert_awaited_once_with(query="rate limiting", tier=None, limit=20)
     payload = json.loads(result[0].text)
     assert len(payload) == 1
     assert payload[0]["exception_id"] == "exc_a1b2c3d4e5f6g7h8"
@@ -77,13 +77,20 @@ async def test_create_exception_calls_service(services):
     }
     args = {
         "title": "Always use parameterized queries",
-        "category": "best-practice",
-        "description": "SQL injection prevention by using parameterized queries in all API handlers.",
-        "resolution": "Replace string concatenation with parameterized query placeholders in all DB calls.",
-        "project_id": "proj_abc123def456",
+        "rule": "Use parameterized queries in all DB calls",
+        "severity": "WARNING",
+        "tier": "universal",
+        "created_by": "test_user",
     }
     result = await handle_call_tool("create_exception", args)
-    services["knowledge"].create_exception.assert_awaited_once_with(**args)
+    services["knowledge"].create_exception.assert_awaited_once_with(
+        title="Always use parameterized queries",
+        rule="Use parameterized queries in all DB calls",
+        severity="WARNING",
+        tier="universal",
+        created_by="test_user",
+        metadata={},
+    )
     payload = json.loads(result[0].text)
     assert payload["status"] == "draft"
 
@@ -96,10 +103,10 @@ async def test_promote_exception_calls_service(services):
     }
     result = await handle_call_tool(
         "promote_exception",
-        {"exception_id": "exc_a1b2c3d4e5f6g7h8", "justification": "Validated across 5 projects"},
+        {"exception_id": "exc_a1b2c3d4e5f6g7h8", "target_tier": "universal", "promoted_by": "admin"},
     )
     services["knowledge"].promote.assert_awaited_once_with(
-        exception_id="exc_a1b2c3d4e5f6g7h8", justification="Validated across 5 projects",
+        exception_id="exc_a1b2c3d4e5f6g7h8", target_tier="universal", promoted_by="admin",
     )
     payload = json.loads(result[0].text)
     assert payload["status"] == "promoted"
@@ -114,8 +121,8 @@ async def test_list_exceptions_calls_service(services):
             {"exception_id": "exc_0000000000000002"},
         ],
     }
-    result = await handle_call_tool("list_exceptions", {"status": "promoted", "limit": 10})
-    services["knowledge"].list_exceptions.assert_awaited_once_with(status="promoted", limit=10)
+    result = await handle_call_tool("list_exceptions", {"tier": "universal", "active_only": True, "limit": 10})
+    services["knowledge"].list_exceptions.assert_awaited_once_with(tier="universal", active_only=True, limit=10)
     payload = json.loads(result[0].text)
     assert payload["total"] == 2
 
@@ -140,7 +147,7 @@ async def test_list_recent_mcp_calls_calls_service(services):
         {"call_id": "call_1", "status": "success"}
     ]
     result = await handle_call_tool("list_recent_mcp_calls", {"limit": 5})
-    services["health"].list_recent_mcp_calls.assert_awaited_once_with(limit=5)
+    services["health"].list_recent_mcp_calls.assert_awaited_once_with(limit=5, server_name=None)
     payload = json.loads(result[0].text)
     assert payload[0]["status"] == "success"
 

@@ -1,0 +1,159 @@
+# OV-D5-governance-gap-auditor — Governance Gap Audit Agent
+# OVERSIGHT phase. Identifies gaps in cost tracking, audit trails, approvals.
+# Uses fast tier — checklist validation against governance requirements.
+
+identity:
+  id: OV-D5-governance-gap-auditor
+  name: Governance Gap Auditor
+  version: "1.0.0"
+  description: "Identifies governance gaps — checks cost tracking coverage, audit trail completeness, approval gate presence, compliance control implementation, and agent oversight mechanisms"
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [oversight, governance, gap, audit, cost, compliance, approval, trail]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [governance_config, agent_inventory, compliance_requirements]
+    properties:
+      governance_config:
+        type: object
+        description: "Current governance mechanisms in place"
+        properties:
+          cost_tracking:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+              granularity:
+                type: string
+                enum: [per-agent, per-phase, per-project]
+              budget_alerts:
+                type: boolean
+              tracked_agents:
+                type: array
+                items:
+                  type: string
+          audit_trail:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+              retention_days:
+                type: integer
+              covers:
+                type: array
+                items:
+                  type: string
+                description: "Agent IDs with audit logging enabled"
+          approval_gates:
+            type: array
+            items:
+              type: object
+              properties:
+                gate_name:
+                  type: string
+                phase:
+                  type: string
+                approvers:
+                  type: array
+                  items:
+                    type: string
+                auto_approve:
+                  type: boolean
+      agent_inventory:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            phase:
+              type: string
+            tier:
+              type: string
+            has_cost_tracking:
+              type: boolean
+            has_audit_logging:
+              type: boolean
+            has_hitl:
+              type: boolean
+        description: "Complete inventory of all agents in the system"
+      compliance_requirements:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            requirement:
+              type: string
+            regulation:
+              type: string
+            control_type:
+              type: string
+              enum: [preventive, detective, corrective]
+        description: "Compliance requirements that must be met"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: governance_precedent_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/governance-gap-report-v1.json
+  channels: [stdout]
+  writes_to: gap_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: risk_level == "critical"
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [governance_config, agent_inventory, compliance_requirements]
+    writes: [audit_trail, gap_report]
+  regulations: []

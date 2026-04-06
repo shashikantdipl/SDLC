@@ -1,0 +1,123 @@
+# OV-D2-tier-model-challenger — Autonomy Tier Challenge Agent
+# OVERSIGHT phase. Validates T0-T3 assignments match risk profiles.
+# Uses balanced tier — needs reasoning about risk trade-offs.
+
+identity:
+  id: OV-D2-tier-model-challenger
+  name: Tier Model Challenger
+  version: "1.0.0"
+  description: "Challenges autonomy tier assignments — validates T0-T3 assignments are appropriate for each agent's risk level, data access, and decision impact. Flags under/over-privileged agents"
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [oversight, tier, autonomy, challenge, risk, privilege, validation]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [agents, security_policy]
+    properties:
+      agents:
+        type: array
+        items:
+          type: object
+          required: [id, tier, data_access, decision_type]
+          properties:
+            id:
+              type: string
+              description: "Agent identifier"
+            tier:
+              type: string
+              enum: [T0, T1, T2, T3]
+              description: "Current autonomy tier assignment"
+            data_access:
+              type: array
+              items:
+                type: string
+              description: "Data domains this agent can read/write"
+            decision_type:
+              type: string
+              enum: [read-only, advisory, auto-apply-reversible, auto-apply-irreversible]
+              description: "Classification of the agent's decision authority"
+            description:
+              type: string
+              description: "What this agent does"
+        description: "Array of agents with their current tier assignments"
+      security_policy:
+        type: object
+        description: "Organization security policy defining tier rules"
+        properties:
+          pii_access_min_tier:
+            type: string
+            description: "Minimum tier for agents accessing PII"
+          cost_write_min_tier:
+            type: string
+            description: "Minimum tier for agents that can incur cost"
+          irreversible_min_tier:
+            type: string
+            description: "Minimum tier for irreversible actions"
+          max_tier_without_hitl:
+            type: string
+            description: "Maximum tier allowed without human-in-the-loop"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: tier_precedent_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/tier-review-v1.json
+  channels: [stdout]
+  writes_to: tier_review
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: on_override_suggestion
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: over_privileged_count > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [agent_manifests, security_policy]
+    writes: [audit_trail, tier_review]
+  regulations: []

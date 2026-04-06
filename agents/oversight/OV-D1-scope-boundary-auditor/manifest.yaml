@@ -1,0 +1,116 @@
+# OV-D1-scope-boundary-auditor — Scope Boundary Audit Agent
+# OVERSIGHT phase. Verifies PRD out-of-scope items are not in features.
+# Uses fast tier — checklist validation, not deep reasoning.
+
+identity:
+  id: OV-D1-scope-boundary-auditor
+  name: Scope Boundary Auditor
+  version: "1.0.0"
+  description: "Audits scope boundaries — verifies PRD out-of-scope items are not in features, checks feature creep against BRD constraints, validates no unauthorized scope expansion"
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [oversight, scope, boundary, audit, prd, brd, creep, validation]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [prd_out_of_scope, features, brd_constraints]
+    properties:
+      prd_out_of_scope:
+        type: array
+        items:
+          type: string
+        description: "List of items explicitly marked out-of-scope in the PRD"
+      features:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+            module:
+              type: string
+        description: "Feature catalog entries to audit against scope boundaries"
+      brd_constraints:
+        type: object
+        description: "Business constraints from the BRD that define scope limits"
+        properties:
+          budget_limit:
+            type: string
+          timeline_limit:
+            type: string
+          technology_constraints:
+            type: array
+            items:
+              type: string
+          explicit_exclusions:
+            type: array
+            items:
+              type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: scope_violation_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/scope-boundary-audit-v1.json
+  channels: [stdout]
+  writes_to: scope_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: creep_detected == true
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [prd, feature_catalog, brd]
+    writes: [audit_trail, scope_report]
+  regulations: []

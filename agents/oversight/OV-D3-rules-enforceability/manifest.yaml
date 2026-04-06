@@ -1,0 +1,137 @@
+# OV-D3-rules-enforceability — Rules Enforceability Checker
+# OVERSIGHT phase. Verifies every rule has an enforcement mechanism.
+# Uses fast tier — checklist validation against rule inventory.
+
+identity:
+  id: OV-D3-rules-enforceability
+  name: Rules Enforceability Checker
+  version: "1.0.0"
+  description: "Checks that every rule in CLAUDE.md and ENFORCEMENT is actually enforceable — has a linter check, a test, or a CI gate. Flags aspirational rules with no enforcement mechanism"
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [oversight, rules, enforcement, linter, ci, gate, audit, governance]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [rules, enforcement_config, ci_pipeline_stages]
+    properties:
+      rules:
+        type: array
+        items:
+          type: object
+          required: [id, text, source]
+          properties:
+            id:
+              type: string
+              description: "Rule identifier (e.g., R-001)"
+            text:
+              type: string
+              description: "The rule statement"
+            source:
+              type: string
+              enum: [claude_md, enforcement_doc, security_arch, quality_doc]
+              description: "Which document this rule originates from"
+            category:
+              type: string
+              description: "Rule category (e.g., naming, testing, security)"
+        description: "All rules extracted from CLAUDE.md and ENFORCEMENT documents"
+      enforcement_config:
+        type: object
+        description: "Enforcement mechanisms configured in .claude/ and CI"
+        properties:
+          linter_rules:
+            type: array
+            items:
+              type: string
+            description: "Linter rule IDs that are active"
+          test_suites:
+            type: array
+            items:
+              type: string
+            description: "Test suite names that run in CI"
+          ci_checks:
+            type: array
+            items:
+              type: string
+            description: "CI check names that gate merges"
+          pre_commit_hooks:
+            type: array
+            items:
+              type: string
+            description: "Pre-commit hook names"
+      ci_pipeline_stages:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            checks:
+              type: array
+              items:
+                type: string
+        description: "CI pipeline stages with their checks"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: rule_enforcement_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/enforceability-report-v1.json
+  channels: [stdout]
+  writes_to: enforceability_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: unenforced_count > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [claude_md, enforcement_doc, ci_config]
+    writes: [audit_trail, enforceability_report]
+  regulations: []

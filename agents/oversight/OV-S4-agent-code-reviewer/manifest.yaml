@@ -1,0 +1,106 @@
+# OV-S4-agent-code-reviewer — Agent Implementation Review Agent
+# OVERSIGHT phase. Reviews agent implementations — manifest/prompt match,
+# BaseAgent pattern, hooks, golden tests, prompt quality rubric.
+# Uses balanced tier — needs deeper reasoning about agent quality.
+
+identity:
+  id: OV-S4-agent-code-reviewer
+  name: Agent Code Reviewer
+  version: "1.0.0"
+  description: "Reviews agent implementations — validates manifest matches prompt, agent follows BaseAgent pattern, hooks are wired, golden tests exist, prompt quality meets rubric threshold."
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [agent-review, manifest, prompt, quality, patterns]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [agent_id, manifest_content, prompt_content]
+    properties:
+      agent_id:
+        type: string
+        description: "Agent identifier, e.g. B8-build-validator, G1-gate-compliance"
+      manifest_content:
+        type: string
+        description: "Full YAML content of the agent's manifest.yaml"
+      prompt_content:
+        type: string
+        description: "Full markdown content of the agent's prompt.md"
+      agent_code:
+        type: string
+        description: "Python source code of the agent implementation (if exists)"
+      test_files:
+        type: array
+        description: "Array of test file contents for the agent"
+        items:
+          type: object
+          properties:
+            filename:
+              type: string
+            content:
+              type: string
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: agent_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/agent-review-v1.json
+  channels: [stdout]
+  writes_to: agent_review
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: prompt_quality_score < 0.7
+      action: slack_alert
+    - condition: pattern_compliance == false
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [agent_manifests, agent_prompts, agent_source, test_files]
+    writes: [audit_trail, agent_review]
+  regulations: []

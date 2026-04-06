@@ -1,0 +1,112 @@
+# OV-S1-spec-structure-linter — Specification Structure Linting Agent
+# OVERSIGHT phase. Validates every generated doc has required sections,
+# correct ID formats, version headers, and resolvable cross-references.
+# Uses fast tier — pattern matching, not deep reasoning.
+
+identity:
+  id: OV-S1-spec-structure-linter
+  name: Spec Structure Linter
+  version: "1.0.0"
+  description: "Validates document structure — checks every generated doc has required sections per its prompt template, correct ID formats (F-NNN, Q-NNN, I-NNN), version headers, and cross-references resolve."
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [structure, lint, sections, format, validation]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [document_content, template_sections]
+    properties:
+      document_content:
+        type: string
+        description: "Full markdown content of the generated document to validate"
+      template_sections:
+        type: array
+        description: "Required section headings that must appear in the document"
+        items:
+          type: string
+      id_formats:
+        type: object
+        description: "Regex patterns for ID validation keyed by prefix"
+        properties:
+          feature_id:
+            type: string
+            default: "^F-\\d{3}$"
+          quality_id:
+            type: string
+            default: "^Q-\\d{3}$"
+          interaction_id:
+            type: string
+            default: "^I-\\d{3}$"
+          story_id:
+            type: string
+            default: "^US-\\d{3}$"
+          sprint_id:
+            type: string
+            default: "^S-\\d{3}$"
+      doc_id:
+        type: string
+        description: "Document number (00-23) for contextual validation"
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: template_section_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/structure-report-v1.json
+  channels: [stdout]
+  writes_to: structure_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: missing_sections_count > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [generated_docs, prompt_templates, id_registries]
+    writes: [audit_trail, structure_report]
+  regulations: []

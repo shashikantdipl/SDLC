@@ -1,0 +1,116 @@
+# OV-S3-docs-cross-ref-auditor — Document Cross-Reference Audit Agent
+# OVERSIGHT phase. Audits cross-references across all 24 documents —
+# broken refs, circular deps, missing targets, reference matrix.
+# Uses fast tier — graph traversal and string matching.
+
+identity:
+  id: OV-S3-docs-cross-ref-auditor
+  name: Docs Cross-Ref Auditor
+  version: "1.0.0"
+  description: "Audits cross-references across all 24 documents — every cited doc/section/ID exists, no broken references, dependency chain is consistent, no circular dependencies."
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [cross-reference, audit, consistency, dependencies, links]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [documents]
+    properties:
+      documents:
+        type: array
+        description: "Array of all generated documents with their IDs and content"
+        items:
+          type: object
+          required: [doc_id, content]
+          properties:
+            doc_id:
+              type: string
+              description: "Document number (00-23)"
+            doc_name:
+              type: string
+              description: "Document short name, e.g. BRD, ARCH, PRD"
+            content:
+              type: string
+              description: "Full markdown content of the document"
+      reference_graph:
+        type: object
+        description: "Known dependency graph — which doc is expected to reference which"
+        properties:
+          edges:
+            type: array
+            items:
+              type: object
+              properties:
+                from_doc:
+                  type: string
+                to_doc:
+                  type: string
+                ref_type:
+                  type: string
+                  enum: [depends_on, references, extends, supersedes]
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: document_reference_index
+
+planning:
+  strategy: sequential
+  max_steps: 8
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/crossref-report-v1.json
+  channels: [stdout]
+  writes_to: crossref_report
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: broken_refs_count > 0
+      action: slack_alert
+    - condition: circular_deps_count > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [generated_docs, build_sequence, dependency_graph]
+    writes: [audit_trail, crossref_report]
+  regulations: []

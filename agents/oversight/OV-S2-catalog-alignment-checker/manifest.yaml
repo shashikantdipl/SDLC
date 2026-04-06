@@ -1,0 +1,140 @@
+# OV-S2-catalog-alignment-checker — Catalog Alignment Checking Agent
+# OVERSIGHT phase. Checks alignment between FEATURE-CATALOG, BACKLOG,
+# and USER-STORIES — coverage, orphans, MoSCoW, and story points.
+# Uses fast tier — cross-referencing and counting, not deep reasoning.
+
+identity:
+  id: OV-S2-catalog-alignment-checker
+  name: Catalog Alignment Checker
+  version: "1.0.0"
+  description: "Checks alignment between FEATURE-CATALOG, BACKLOG, and USER-STORIES — every F-NNN has stories, every US-NNN maps to features, MoSCoW distribution matches, story points reconcile."
+  owner: platform-team
+  phase: oversight
+  extends: reviewer
+  mixins: []
+  tags: [alignment, catalog, features, stories, traceability]
+
+foundation_model:
+  tier: fast
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [features, user_stories, backlog_stories]
+    properties:
+      features:
+        type: array
+        description: "Feature catalog entries (F-NNN)"
+        items:
+          type: object
+          required: [id, name, moscow]
+          properties:
+            id:
+              type: string
+              description: "Feature ID, e.g. F-001"
+            name:
+              type: string
+            moscow:
+              type: string
+              enum: [Must, Should, Could, Wont]
+            story_ids:
+              type: array
+              items:
+                type: string
+            story_points_budget:
+              type: integer
+      user_stories:
+        type: array
+        description: "User story entries (US-NNN)"
+        items:
+          type: object
+          required: [id, feature_id]
+          properties:
+            id:
+              type: string
+              description: "Story ID, e.g. US-001"
+            feature_id:
+              type: string
+              description: "Parent feature, e.g. F-001"
+            story_points:
+              type: integer
+            acceptance_criteria_count:
+              type: integer
+      backlog_stories:
+        type: array
+        description: "Sprint backlog entries (S-NNN)"
+        items:
+          type: object
+          required: [id, user_story_id]
+          properties:
+            id:
+              type: string
+              description: "Sprint story ID, e.g. S-001"
+            user_story_id:
+              type: string
+            sprint:
+              type: string
+            status:
+              type: string
+            story_points:
+              type: integer
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: feature_story_mappings
+
+planning:
+  strategy: sequential
+  max_steps: 6
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/alignment-report-v1.json
+  channels: [stdout]
+  writes_to: alignment_report
+
+safety:
+  autonomy_tier: T0
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: false
+    trigger: never
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: orphan_stories_count > 0
+      action: slack_alert
+    - condition: uncovered_features_count > 0
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [feature_catalog, user_stories, backlog, moscow_targets]
+    writes: [audit_trail, alignment_report]
+  regulations: []

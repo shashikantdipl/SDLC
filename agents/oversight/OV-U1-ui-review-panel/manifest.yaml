@@ -1,0 +1,186 @@
+# OV-U1-ui-review-panel — UI Review Panel Agent
+# OVERSIGHT phase. Reviews dashboard UI against DESIGN-SPEC and INTERACTION-MAP.
+# Uses balanced tier — needs visual reasoning for UI compliance.
+
+identity:
+  id: OV-U1-ui-review-panel
+  name: UI Review Panel
+  version: "1.0.0"
+  description: "Reviews dashboard UI against DESIGN-SPEC — validates screens match wireframes, data elements map to INTERACTION-MAP shapes, accessibility compliance (WCAG 2.1 AA), and responsive behavior"
+  owner: platform-team
+  phase: oversight
+  extends: orchestrator
+  mixins: []
+  tags: [oversight, ui, review, design, accessibility, wcag, responsive, dashboard]
+
+foundation_model:
+  tier: balanced
+  provider: null
+  temperature: 0.0
+  max_tokens: 4096
+
+perception:
+  trigger: api
+  input_schema:
+    type: object
+    required: [design_spec_screens, dashboard_code, interaction_map_shapes, accessibility_nfrs]
+    properties:
+      design_spec_screens:
+        type: array
+        items:
+          type: object
+          required: [screen_id, name, wireframe_elements]
+          properties:
+            screen_id:
+              type: string
+              description: "Screen identifier from DESIGN-SPEC"
+            name:
+              type: string
+              description: "Screen name"
+            wireframe_elements:
+              type: array
+              items:
+                type: object
+                properties:
+                  element_id:
+                    type: string
+                  type:
+                    type: string
+                    enum: [header, table, chart, form, button, nav, card, modal, alert, input]
+                  data_binding:
+                    type: string
+                    description: "Data field this element displays"
+                  required:
+                    type: boolean
+              description: "UI elements defined in the wireframe"
+            responsive_breakpoints:
+              type: array
+              items:
+                type: string
+              description: "Required breakpoints (e.g., 320px, 768px, 1024px, 1440px)"
+        description: "Screen definitions from DESIGN-SPEC document"
+      dashboard_code:
+        type: object
+        description: "Dashboard implementation to review"
+        properties:
+          components:
+            type: array
+            items:
+              type: object
+              properties:
+                file:
+                  type: string
+                screen_id:
+                  type: string
+                elements_implemented:
+                  type: array
+                  items:
+                    type: string
+                aria_labels:
+                  type: array
+                  items:
+                    type: string
+                responsive_classes:
+                  type: array
+                  items:
+                    type: string
+          routes:
+            type: array
+            items:
+              type: object
+              properties:
+                path:
+                  type: string
+                screen_id:
+                  type: string
+      interaction_map_shapes:
+        type: array
+        items:
+          type: object
+          properties:
+            shape_id:
+              type: string
+            type:
+              type: string
+            data_fields:
+              type: array
+              items:
+                type: string
+            connected_screens:
+              type: array
+              items:
+                type: string
+        description: "Data shapes from INTERACTION-MAP that must appear in the UI"
+      accessibility_nfrs:
+        type: object
+        description: "Non-functional requirements for accessibility"
+        properties:
+          standard:
+            type: string
+            default: "WCAG 2.1 AA"
+          min_contrast_ratio:
+            type: number
+            default: 4.5
+          keyboard_nav_required:
+            type: boolean
+            default: true
+          screen_reader_required:
+            type: boolean
+            default: true
+          max_touch_target_px:
+            type: integer
+            default: 44
+
+memory:
+  working: session_context
+  episodic: audit_events_table
+  semantic: ui_pattern_catalog
+
+planning:
+  strategy: sequential
+  max_steps: 10
+  dry_run_supported: true
+
+tools:
+  allowed: [Read, Glob, Grep]
+  custom: []
+
+output:
+  schema_ref: schema/contracts/ui-review-v1.json
+  channels: [stdout]
+  writes_to: ui_review
+
+safety:
+  autonomy_tier: T1
+  max_budget_usd: 0.10
+  audit_logging: true
+  pii_scanning: false
+  hitl:
+    enabled: true
+    trigger: on_accessibility_failure
+
+observability:
+  metrics_enabled: true
+  log_level: INFO
+  alert_rules:
+    - condition: accessibility_score < 90
+      action: slack_alert
+
+maturity:
+  current_level: apprentice
+  max_maturity: expert
+  promotion_criteria:
+    override_rate_below: 0.02
+    confidence_above: 0.95
+    consecutive_days: 14
+
+testing:
+  golden_tests: tests/golden/
+  adversarial_tests: tests/adversarial/
+  min_coverage: 0.90
+
+compliance:
+  data_inventory:
+    reads: [design_spec, dashboard_code, interaction_map, accessibility_nfrs]
+    writes: [audit_trail, ui_review]
+  regulations: [WCAG-2.1-AA]
